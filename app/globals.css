@@ -437,10 +437,20 @@ nav a:hover,
 }
 
 .answer-lead b,
+.answer-lead small,
 .answer-flow small {
   display: block;
 }
 
+.answer-lead {
+  margin: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(74, 144, 244, 0.62);
+  border-radius: 10px;
+  background: rgba(47, 121, 232, 0.12);
+}
+
+.answer-lead small,
 .answer-flow small {
   color: #6aa7ff;
   font-size: 7px;
@@ -448,8 +458,8 @@ nav a:hover,
   letter-spacing: 0.12em;
 }
 
-.answer-lead {
-  margin: 0;
+.answer-lead small {
+  margin-bottom: 6px;
 }
 
 .answer-lead b {

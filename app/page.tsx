@@ -33,11 +33,10 @@ function RealOverlay() {
           <div className="overlay-state">
             <div>
               <strong>Answering</strong>
-              <span>General · EN · CUE · THINKING · CTX</span>
+              <span>General · EN · CUE · BALANCED · CTX</span>
             </div>
-            <small>Generating answer...</small>
+            <small>Answer ready</small>
           </div>
-          <span className="spinner" aria-hidden="true" />
           <div className="overlay-spacer" />
           <span className="timer-pill">00:04</span>
           <button aria-label="Dashboard">⌂</button>
@@ -72,29 +71,34 @@ function RealOverlay() {
       <div className="overlay-panel answer-panel">
         <div className="overlay-panel-title">
           <span>ANSWER</span>
-          <span>⌘, / ⌘. scroll</span>
+          <span>⌘↑ / ⌘↓ scroll</span>
         </div>
         <div className="answer-surface">
           <p className="answer-lead">
+            <small>START HERE</small>
             <b>
-              First, I&apos;d separate the critical path from work we can safely
-              defer.
+              First, I&apos;d find the real blocker, protect the critical path,
+              and reset expectations early.
             </b>
           </p>
           <div className="answer-flow">
             <p>
               <small>WHY</small>
-              That keeps the team focused on the work that matters most.
+              A late project usually needs a clear trade-off, not just more
+              pressure on the team.
             </p>
             <p>
               <small>WHAT I&apos;D DO</small>
-              I&apos;d confirm the blockers, reset the plan, and share the
-              tradeoff early.
+              I&apos;d confirm the blocker with the owners, separate must-have
+              work from deferrable scope, and publish a recovery plan with new
+              milestones.
             </p>
             <p>
               <small>EXAMPLE</small>
-              I&apos;d protect the launch requirement and move optional work to
-              the next milestone.
+              On a data migration, an upstream schema change delayed testing.
+              We kept the launch-critical tables in scope, moved a historical
+              backfill to the next sprint, and gave stakeholders daily
+              checkpoints until the release was stable.
             </p>
           </div>
         </div>

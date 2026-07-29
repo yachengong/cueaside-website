@@ -7,6 +7,20 @@ export const metadata: Metadata = {
   description:
     "An AI speaking copilot for interviews and meetings. Start with a clear opening, then follow a natural, structured answer grounded in your own context.",
   applicationName: "CueAside",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   icons: {
     icon: "/cueaside-icon.png",
     shortcut: "/cueaside-icon.png",
@@ -38,6 +52,17 @@ export const metadata: Metadata = {
   },
 };
 
+const softwareApplicationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "CueAside",
+  url: "https://cueaside.com/",
+  description:
+    "An AI speaking copilot for interviews and meetings that provides context-aware, speaking-ready answers in real time.",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "macOS",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -45,7 +70,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(softwareApplicationJsonLd).replace(
+              /</g,
+              "\\u003c",
+            ),
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

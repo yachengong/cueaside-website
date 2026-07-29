@@ -13,5 +13,19 @@ test("renders the CueAside product landing page", async () => {
   assert.match(html, /THINKING DEPTH/);
   assert.match(html, /Frequently asked questions/);
   assert.match(html, /English, Chinese, Spanish/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/cueaside\.com\/"/i);
+  assert.match(html, /"@type":"SoftwareApplication"/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Cue or Read/i);
+});
+
+test("publishes search crawler discovery files", async () => {
+  const [robots, sitemap] = await Promise.all([
+    readFile(new URL("../out/robots.txt", import.meta.url), "utf8"),
+    readFile(new URL("../out/sitemap.xml", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(robots, /^User-agent: \*$/m);
+  assert.match(robots, /^Allow: \/$/m);
+  assert.match(robots, /https:\/\/cueaside\.com\/sitemap\.xml/);
+  assert.match(sitemap, /<loc>https:\/\/cueaside\.com\/<\/loc>/);
 });

@@ -1,0 +1,11 @@
+{
+  "framework": "nextjs",
+  "functions": {
+    "app/api/ai/answer/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/ai/transcribe/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

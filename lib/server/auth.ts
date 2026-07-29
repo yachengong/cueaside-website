@@ -10,6 +10,52 @@ export interface CueAsideUser {
   email: string | null;
 }
 
+type OAuthProvider = "google" | "apple";
+
+export async function createOAuthURL(request: Request): Promise<Response> {
+  const body = await readJSON<{ provider?: string }>(request, 8_000);
+  const provider = body.provider?.trim().toLowerCase() as OAuthProvider;
+  if (provider !== "google" && provider !== "apple") {
+    throw new ServiceError(
+      "Choose Google or Apple to continue.",
+      400,
+      "invalid_provider",
+    );
+  }
+
+  const enabled =
+    provider === "google"
+      ? process.env.AUTH_GOOGLE_ENABLED === "true"
+      : process.env.AUTH_APPLE_ENABLED === "true";
+  if (!enabled) {
+    throw new ServiceError(
+      `${provider === "google" ? "Google" : "Apple"} sign-in is being configured. Use email for now.`,
+      503,
+      "provider_not_configured",
+    );
+  }
+
+  await enforcePublicRateLimit({
+    request,
+    scope: "oauth-start",
+    maximum: 30,
+    windowSeconds: 15 * 60,
+  });
+
+  const base = requireRuntimeValue(
+    "SUPABASE_URL",
+    "Sign in is not configured yet.",
+  ).replace(/\/+$/, "");
+  const url = new URL(`${base}/auth/v1/authorize`);
+  url.searchParams.set("provider", provider);
+  url.searchParams.set("redirect_to", "cueaside://auth/callback");
+
+  return Response.json(
+    { url: url.toString() },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 function supabaseHeaders(accessToken?: string): HeadersInit {
   const apiKey = requireRuntimeValue(
     "SUPABASE_ANON_KEY",

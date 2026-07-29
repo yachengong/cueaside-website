@@ -1,10 +1,10 @@
-import { env } from "cloudflare:workers";
-
 export interface CueAsideRuntime {
-  DB?: D1Database;
   PUBLIC_SITE_URL?: string;
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  AUTH_GOOGLE_ENABLED?: string;
+  AUTH_APPLE_ENABLED?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;
@@ -14,7 +14,7 @@ export interface CueAsideRuntime {
 }
 
 export function runtime(): CueAsideRuntime {
-  return env as unknown as CueAsideRuntime;
+  return process.env as CueAsideRuntime;
 }
 
 export function requireRuntimeValue(

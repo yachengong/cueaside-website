@@ -1,7 +1,8 @@
-# CueAside website
+# CueAside website and hosted API
 
-The public, static product site for CueAside, a macOS live speaking copilot
-for interviews and meetings. It does not require an OpenAI or ChatGPT login.
+The public product site and secure API for CueAside, a macOS live speaking
+copilot for interviews and meetings. Customers sign in with email and never
+provide their own OpenAI key.
 
 ## Local development
 
@@ -16,9 +17,17 @@ npm run dev
 npm test
 ```
 
-`npm run build` exports the complete site to `out/`.
+`npm run build` validates the Vercel production app. `npm run build:pages`
+creates the temporary static GitHub Pages build used during the migration.
 
-## Publishing
+## Production services
 
-Push `main` to GitHub. The Pages workflow builds the static export and
-publishes it publicly. The custom domain is `cueaside.com`.
+- Vercel hosts the Next.js website and API.
+- Supabase provides email authentication and Postgres storage.
+- Stripe hosts checkout and the customer billing portal.
+- OpenAI requests run only through the server-side CueAside API.
+
+Create the Supabase tables and atomic usage functions by applying
+`supabase/migrations/202607290001_cueaside_commercial.sql`, then configure the
+variables listed in `.env.example` in Vercel. The service-role and OpenAI keys
+must remain server-only.

@@ -1,6 +1,3 @@
-import { and, eq, sql } from "drizzle-orm";
-import { getDb } from "@/db";
-import { billingAccounts, stripeEvents, usageDaily } from "@/db/schema";
 import { CueAsideUser } from "./auth";
 import {
   ServiceError,
@@ -8,6 +5,14 @@ import {
   requireRuntimeValue,
   runtime,
 } from "./runtime";
+import {
+  applySubscriptionUpdate,
+  billingAccountFor,
+  consumeDailyUsage,
+  insertStripeEvent,
+  stripeEventExists,
+  upsertBillingAccount,
+} from "./supabase";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
@@ -38,17 +43,13 @@ export async function entitlementFor(userId: string): Promise<Entitlement> {
     };
   }
 
-  const [account] = await getDb()
-    .select()
-    .from(billingAccounts)
-    .where(eq(billingAccounts.userId, userId))
-    .limit(1);
-  const status = account?.subscriptionStatus ?? "inactive";
+  const account = await billingAccountFor(userId);
+  const status = account?.subscription_status ?? "inactive";
   return {
     active: ACTIVE_STATUSES.has(status),
     status,
-    currentPeriodEnd: account?.currentPeriodEnd ?? null,
-    cancelAtPeriodEnd: account?.cancelAtPeriodEnd ?? false,
+    currentPeriodEnd: account?.current_period_end ?? null,
+    cancelAtPeriodEnd: account?.cancel_at_period_end ?? false,
     bypass: false,
   };
 }
@@ -78,10 +79,14 @@ function stripeHeaders(): HeadersInit {
 async function stripeRequest(
   path: string,
   params: URLSearchParams,
+  idempotencyKey?: string,
 ): Promise<Record<string, unknown>> {
   const response = await fetch(`https://api.stripe.com/v1${path}`, {
     method: "POST",
-    headers: stripeHeaders(),
+    headers: {
+      ...stripeHeaders(),
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+    },
     body: params,
   });
   const payload = (await response.json().catch(() => ({}))) as Record<
@@ -99,22 +104,21 @@ async function stripeRequest(
 }
 
 async function accountFor(userId: string) {
-  const [account] = await getDb()
-    .select()
-    .from(billingAccounts)
-    .where(eq(billingAccounts.userId, userId))
-    .limit(1);
-  return account;
+  return billingAccountFor(userId);
 }
 
 async function createStripeCustomer(user: CueAsideUser): Promise<string> {
   const existing = await accountFor(user.id);
-  if (existing?.stripeCustomerId) return existing.stripeCustomerId;
+  if (existing?.stripe_customer_id) return existing.stripe_customer_id;
 
   const params = new URLSearchParams();
   if (user.email) params.set("email", user.email);
   params.set("metadata[supabase_user_id]", user.id);
-  const customer = await stripeRequest("/customers", params);
+  const customer = await stripeRequest(
+    "/customers",
+    params,
+    `cueaside-customer-${user.id}`,
+  );
   const customerId = typeof customer.id === "string" ? customer.id : "";
   if (!customerId) {
     throw new ServiceError(
@@ -124,22 +128,12 @@ async function createStripeCustomer(user: CueAsideUser): Promise<string> {
     );
   }
 
-  await getDb()
-    .insert(billingAccounts)
-    .values({
-      userId: user.id,
-      email: user.email,
-      stripeCustomerId: customerId,
-      updatedAt: Math.floor(Date.now() / 1000),
-    })
-    .onConflictDoUpdate({
-      target: billingAccounts.userId,
-      set: {
-        email: user.email,
-        stripeCustomerId: customerId,
-        updatedAt: Math.floor(Date.now() / 1000),
-      },
-    });
+  await upsertBillingAccount({
+    user_id: user.id,
+    email: user.email,
+    stripe_customer_id: customerId,
+    updated_at: Math.floor(Date.now() / 1000),
+  });
   return customerId;
 }
 
@@ -168,7 +162,11 @@ export async function createCheckout(user: CueAsideUser): Promise<string> {
     cancel_url: `${publicSiteURL()}/checkout/canceled/`,
   });
   params.set("subscription_data[metadata][supabase_user_id]", user.id);
-  const session = await stripeRequest("/checkout/sessions", params);
+  const session = await stripeRequest(
+    "/checkout/sessions",
+    params,
+    `cueaside-checkout-${user.id}-${Math.floor(Date.now() / 300_000)}`,
+  );
   const url = typeof session.url === "string" ? session.url : "";
   if (!url) {
     throw new ServiceError(
@@ -200,10 +198,6 @@ export async function createPortal(user: CueAsideUser): Promise<string> {
   return url;
 }
 
-function usageDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export type UsageKind =
   | "answerRequests"
   | "transcriptionRequests"
@@ -215,37 +209,25 @@ const USAGE_LIMITS: Record<UsageKind, number> = {
   realtimeTokens: 1_000,
 };
 
+const USAGE_COLUMNS: Record<
+  UsageKind,
+  "answer_requests" | "transcription_requests" | "realtime_tokens"
+> = {
+  answerRequests: "answer_requests",
+  transcriptionRequests: "transcription_requests",
+  realtimeTokens: "realtime_tokens",
+};
+
 export async function recordUsage(
   userId: string,
   kind: UsageKind,
 ): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  const date = usageDate();
-  const db = getDb();
-  await db
-    .insert(usageDaily)
-    .values({
-      userId,
-      usageDate: date,
-      [kind]: 1,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [usageDaily.userId, usageDaily.usageDate],
-      set: {
-        [kind]: sql`${usageDaily[kind]} + 1`,
-        updatedAt: now,
-      },
-    });
-
-  const [usage] = await db
-    .select()
-    .from(usageDaily)
-    .where(
-      and(eq(usageDaily.userId, userId), eq(usageDaily.usageDate, date)),
-    )
-    .limit(1);
-  if ((usage?.[kind] ?? 0) > USAGE_LIMITS[kind]) {
+  const allowed = await consumeDailyUsage({
+    userId,
+    kind: USAGE_COLUMNS[kind],
+    limit: USAGE_LIMITS[kind],
+  });
+  if (!allowed) {
     throw new ServiceError(
       "Today’s fair-use limit has been reached. Contact support if you need more.",
       429,
@@ -257,12 +239,7 @@ export async function recordUsage(
 export async function hasProcessedStripeEvent(
   eventId: string,
 ): Promise<boolean> {
-  const [event] = await getDb()
-    .select({ id: stripeEvents.eventId })
-    .from(stripeEvents)
-    .where(eq(stripeEvents.eventId, eventId))
-    .limit(1);
-  return Boolean(event);
+  return stripeEventExists(eventId);
 }
 
 export async function markStripeEvent(
@@ -270,15 +247,12 @@ export async function markStripeEvent(
   eventType: string,
   eventCreated: number,
 ): Promise<void> {
-  await getDb()
-    .insert(stripeEvents)
-    .values({
-      eventId,
-      eventType,
-      eventCreated,
-      processedAt: Math.floor(Date.now() / 1000),
-    })
-    .onConflictDoNothing();
+  await insertStripeEvent({
+    event_id: eventId,
+    event_type: eventType,
+    event_created: eventCreated,
+    processed_at: Math.floor(Date.now() / 1000),
+  });
 }
 
 export async function updateSubscription(input: {
@@ -292,43 +266,15 @@ export async function updateSubscription(input: {
   cancelAtPeriodEnd?: boolean;
   eventCreated: number;
 }): Promise<void> {
-  const existing = await accountFor(input.userId);
-  if (
-    existing &&
-    input.eventCreated < (existing.latestStripeEventCreated ?? 0)
-  ) {
-    return;
-  }
-
-  await getDb()
-    .insert(billingAccounts)
-    .values({
-      userId: input.userId,
-      email: input.email ?? null,
-      stripeCustomerId: input.customerId ?? null,
-      stripeSubscriptionId: input.subscriptionId ?? null,
-      subscriptionStatus: input.status,
-      priceId: input.priceId ?? null,
-      currentPeriodEnd: input.currentPeriodEnd ?? null,
-      cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? false,
-      latestStripeEventCreated: input.eventCreated,
-      updatedAt: Math.floor(Date.now() / 1000),
-    })
-    .onConflictDoUpdate({
-      target: billingAccounts.userId,
-      set: {
-        email: input.email ?? existing?.email ?? null,
-        stripeCustomerId:
-          input.customerId ?? existing?.stripeCustomerId ?? null,
-        stripeSubscriptionId:
-          input.subscriptionId ?? existing?.stripeSubscriptionId ?? null,
-        subscriptionStatus: input.status,
-        priceId: input.priceId ?? existing?.priceId ?? null,
-        currentPeriodEnd:
-          input.currentPeriodEnd ?? existing?.currentPeriodEnd ?? null,
-        cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? false,
-        latestStripeEventCreated: input.eventCreated,
-        updatedAt: Math.floor(Date.now() / 1000),
-      },
-    });
+  await applySubscriptionUpdate({
+    userId: input.userId,
+    email: input.email ?? null,
+    customerId: input.customerId ?? null,
+    subscriptionId: input.subscriptionId ?? null,
+    status: input.status,
+    priceId: input.priceId ?? null,
+    currentPeriodEnd: input.currentPeriodEnd ?? null,
+    cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? false,
+    eventCreated: input.eventCreated,
+  });
 }

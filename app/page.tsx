@@ -382,6 +382,64 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="user-voice-section">
+        <div className="section-heading">
+          <div className="eyebrow">What people need in the moment</div>
+          <h2>The answer is already in your head.</h2>
+          <p>
+            CueAside is designed around the small gaps that make live
+            conversations harder than they need to be.
+          </p>
+        </div>
+        <div className="voice-grid">
+          <article>
+            <span className="quote-mark">“</span>
+            <blockquote>
+              I know the answer. I just need the first sentence to get started.
+            </blockquote>
+            <div className="voice-persona">
+              <span>01</span>
+              <div>
+                <b>Interviewing professional</b>
+                <small>Behavioral and technical interviews</small>
+              </div>
+            </div>
+          </article>
+          <article>
+            <span className="quote-mark">“</span>
+            <blockquote>
+              I want to use my notes without looking away from the
+              conversation.
+            </blockquote>
+            <div className="voice-persona">
+              <span>02</span>
+              <div>
+                <b>Team contributor</b>
+                <small>Planning and stakeholder meetings</small>
+              </div>
+            </div>
+          </article>
+          <article>
+            <span className="quote-mark">“</span>
+            <blockquote>
+              Keep the technical terms precise. Make everything around them
+              easy to say.
+            </blockquote>
+            <div className="voice-persona">
+              <span>03</span>
+              <div>
+                <b>Second-language speaker</b>
+                <small>High-stakes professional conversations</small>
+              </div>
+            </div>
+          </article>
+        </div>
+        <p className="illustrative-note">
+          Illustrative scenarios based on common live-conversation needs—not
+          customer testimonials.
+        </p>
+      </section>
+
       <section className="use-cases" id="use-cases">
         <div className="section-heading">
           <div className="eyebrow">Built for high-pressure conversations</div>

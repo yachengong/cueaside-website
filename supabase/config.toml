@@ -1,0 +1,14 @@
+project_id = "cueaside"
+
+[auth]
+site_url = "https://cueaside.com"
+additional_redirect_urls = ["cueaside://auth/callback"]
+
+[auth.email]
+enable_confirmations = true
+max_frequency = "1m"
+otp_length = 8
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true

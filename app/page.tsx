@@ -75,20 +75,29 @@ function RealOverlay() {
           <span>⌘, / ⌘. scroll</span>
         </div>
         <div className="answer-surface">
-          <p>
+          <div className="answer-opening">
+            <small>START HERE</small>
             <b>
-              First, I would separate the critical path from work we can defer.
+              First, I&apos;d separate the critical path from work we can safely
+              defer.
             </b>
-          </p>
-          <p>
-            Then I&apos;d confirm the blockers with the team and reset the plan
-            around the highest-impact deliverables.
-          </p>
-          <p>
-            For example, if one integration is holding the release, I&apos;d
-            ship the stable workflow first and move lower-risk work into the
-            next milestone.
-          </p>
+          </div>
+          <div className="answer-flow">
+            <p>
+              <small>WHY</small>
+              That keeps the team focused on the work that matters most.
+            </p>
+            <p>
+              <small>WHAT I&apos;D DO</small>
+              I&apos;d confirm the blockers, reset the plan, and share the
+              tradeoff early.
+            </p>
+            <p>
+              <small>EXAMPLE</small>
+              I&apos;d protect the launch requirement and move optional work to
+              the next milestone.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -125,6 +134,12 @@ function RealDashboard() {
     ["▯", "Phone"],
     ["⚙", "Settings"],
   ];
+  const recentSessions = [
+    ["Jul 29 · 10:42", "6 Q/A"],
+    ["Jul 28 · 21:17", "3 Q/A"],
+    ["Jul 27 · 14:05", "9 Q/A"],
+    ["Jul 25 · 16:31", "4 Q/A"],
+  ];
 
   return (
     <div className="real-dashboard" aria-label="CueAside dashboard">
@@ -160,7 +175,7 @@ function RealDashboard() {
       <div className="dash-content">
         <div className="dash-heading">
           <h3>Overview</h3>
-          <p>Start a session to open the private overlay.</p>
+          <p>Start a session to open the invisible overlay.</p>
         </div>
         <div className="dash-card session-card">
           <span className="idle-indicator">
@@ -168,22 +183,24 @@ function RealDashboard() {
           </span>
           <div>
             <strong>No active session</strong>
-            <p>The overlay opens in focus mode when you start.</p>
+            <p>
+              The overlay opens in focus mode when you start from the sidebar.
+            </p>
           </div>
           <span className="sleep-mark">☾</span>
         </div>
         <div className="dash-chips">
           <div>
             <small>ROLE</small>
-            <b>General</b>
+            <b>DE</b>
           </div>
           <div>
             <small>STYLE</small>
-            <b>Cue</b>
+            <b>Read</b>
           </div>
           <div>
             <small>LANGUAGE</small>
-            <b>English</b>
+            <b>EN</b>
           </div>
           <div>
             <small>CONTEXT</small>
@@ -196,14 +213,13 @@ function RealDashboard() {
           <span>View all</span>
         </div>
         <div className="dash-card recent-card">
-          <div>
-            <span className="file-icon">▤</span>
-            <p>
-              <b>Product interview</b>
-              <small>Today · 7 questions</small>
-            </p>
-          </div>
-          <span>›</span>
+          {recentSessions.map(([date, count]) => (
+            <div className="recent-row" key={date}>
+              <span>{date}</span>
+              <span>{count}</span>
+              <span>›</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

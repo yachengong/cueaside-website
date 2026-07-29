@@ -3,8 +3,9 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 
 export function getDb() {
-  if (!env.DB) {
+  const runtime = env as unknown as { DB?: D1Database };
+  if (!runtime.DB) {
     throw new Error("CueAside billing storage is not configured.");
   }
-  return drizzle(env.DB, { schema });
+  return drizzle(runtime.DB, { schema });
 }

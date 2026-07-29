@@ -1,5 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
+import LiveOverlayDemo from "./live-overlay-demo";
+
 const Arrow = () => <span aria-hidden="true">→</span>;
 
 const WaveMark = () => (
@@ -19,108 +21,6 @@ const WindowDots = () => (
     <i />
   </span>
 );
-
-function RealOverlay() {
-  return (
-    <div className="real-overlay" aria-label="CueAside live overlay">
-      <div className="overlay-controls">
-        <div className="overlay-status-row">
-          <span className="live-dot" />
-          <div className="overlay-state">
-            <div>
-              <strong>Answering</strong>
-              <span>General · EN · BALANCED · CTX</span>
-            </div>
-            <small>Answer ready</small>
-          </div>
-          <div className="overlay-spacer" />
-          <span className="timer-pill">00:04</span>
-          <button aria-label="Dashboard">⌂</button>
-          <button aria-label="End session">◉</button>
-        </div>
-
-        <div className="overlay-action-row">
-          <div className="overlay-spacer" />
-          <button className="active-control" aria-label="Listening">
-            ◼
-          </button>
-          <button aria-label="Record">●</button>
-          <button aria-label="Scan">⌗</button>
-          <button aria-label="Peek">◌</button>
-          <button className="blue-control" aria-label="Coding mode">
-            ⌨
-          </button>
-        </div>
-      </div>
-
-      <div className="overlay-panel question-panel">
-        <div className="overlay-panel-title">
-          <span>QUESTION</span>
-          <span>Transcript</span>
-        </div>
-        <div className="question-surface">
-          How would you handle a project that&apos;s falling behind?
-        </div>
-      </div>
-
-      <div className="overlay-panel answer-panel">
-        <div className="overlay-panel-title">
-          <span>ANSWER</span>
-          <span>⌘↑ / ⌘↓ scroll</span>
-        </div>
-        <div className="answer-surface">
-          <p className="answer-lead">
-            <small>START HERE</small>
-            <b>
-              First, I&apos;d find the real blocker, protect the critical path,
-              and reset expectations early.
-            </b>
-          </p>
-          <div className="answer-flow">
-            <p>
-              <small>WHY</small>
-              A late project usually needs a clear trade-off, not just more
-              pressure on the team.
-            </p>
-            <p>
-              <small>WHAT I&apos;D DO</small>
-              <b>I&apos;d reset the plan around the real constraint.</b>
-              Then I&apos;d separate launch-critical work from scope we can
-              safely move.
-            </p>
-            <p>
-              <small>EXAMPLE</small>
-              <b>I&apos;d make the trade-off visible to stakeholders.</b>
-              For example, we could protect the launch path and schedule the
-              historical backfill for the next milestone.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="overlay-bottom-bar">
-        <button className="run-button">ϟ&nbsp;&nbsp;Run</button>
-        <button>↻&nbsp;&nbsp;Retry</button>
-        <button>‹</button>
-        <button>›</button>
-        <button>Clear</button>
-        <span />
-        <button>?</button>
-      </div>
-
-      <div className="opacity-control">
-        <span>◐</span>
-        <b>Opacity</b>
-        <span className="slider">
-          <i />
-        </span>
-        <code>70%</code>
-        <button>0%</button>
-        <button className="opacity-active">70%</button>
-      </div>
-    </div>
-  );
-}
 
 function RealDashboard() {
   const navItems = [
@@ -294,7 +194,7 @@ export default function Home() {
             <span />
             Actual CueAside overlay
           </div>
-          <RealOverlay />
+          <LiveOverlayDemo />
         </div>
       </section>
 
@@ -396,8 +296,8 @@ export default function Home() {
             <div>
               <h3>One answer you can scan or read</h3>
               <p>
-                Each blue point starts with a bold topic sentence, followed by
-                the explanation or example you can continue reading.
+                Each blue point names the topic. Amber key phrases guide your
+                eyes while the complete sentence stays easy to read.
               </p>
             </div>
           </article>
@@ -592,8 +492,8 @@ export default function Home() {
             <summary>What makes the answer easier to say?</summary>
             <p>
               The first sentence gives you a direct opening. Each blue point
-              then adds one bold topic sentence and a short explanation or
-              example, so you can stop or continue without losing the thread.
+              then adds a white topic sentence with amber key phrases and a
+              short explanation, so you can stop or continue naturally.
             </p>
           </details>
           <details>

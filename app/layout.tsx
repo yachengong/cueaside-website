@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     siteName: "CueAside",
     images: [
       {
-        url: "/cueaside-social.png",
+        url: "https://cueaside.com/og.png",
         width: 1200,
         height: 630,
         alt: "CueAside AI speaking copilot",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     title: "CueAside — Speak clearly when it matters",
     description:
       "AI-powered, context-aware speaking guidance for interviews and meetings.",
-    images: ["/cueaside-social.png"],
+    images: ["https://cueaside.com/og.png"],
   },
 };
 

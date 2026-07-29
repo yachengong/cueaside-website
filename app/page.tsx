@@ -1,4 +1,4 @@
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element */
 
 const Arrow = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -6,33 +6,220 @@ const Arrow = () => (
   </svg>
 );
 
-const Waveform = () => (
-  <div className="waveform" aria-hidden="true">
-    <span />
-    <span />
-    <span />
-    <span />
-    <span />
-    <span />
-    <span />
-    <span />
-    <span />
-    <span />
-    <span />
-  </div>
+const WaveMark = () => (
+  <span className="wave-mark" aria-hidden="true">
+    <i />
+    <i />
+    <i />
+    <i />
+    <i />
+  </span>
 );
+
+const WindowDots = () => (
+  <span className="window-dots" aria-hidden="true">
+    <i />
+    <i />
+    <i />
+  </span>
+);
+
+function RealOverlay() {
+  return (
+    <div className="real-overlay" aria-label="CueAside live overlay">
+      <div className="overlay-controls">
+        <div className="overlay-status-row">
+          <span className="live-dot" />
+          <div className="overlay-state">
+            <div>
+              <strong>Answering</strong>
+              <span>General · EN · CUE · THINKING · CTX</span>
+            </div>
+            <small>Generating answer...</small>
+          </div>
+          <span className="spinner" aria-hidden="true" />
+          <div className="overlay-spacer" />
+          <span className="timer-pill">00:04</span>
+          <button aria-label="Dashboard">⌂</button>
+          <button aria-label="End session">◉</button>
+        </div>
+
+        <div className="overlay-action-row">
+          <span className="style-pill">≡&nbsp;&nbsp;Cue</span>
+          <div className="overlay-spacer" />
+          <button className="active-control" aria-label="Listening">
+            ◼
+          </button>
+          <button aria-label="Record">●</button>
+          <button aria-label="Scan">⌗</button>
+          <button aria-label="Peek">◌</button>
+          <button className="blue-control" aria-label="Coding mode">
+            ⌨
+          </button>
+        </div>
+      </div>
+
+      <div className="overlay-panel question-panel">
+        <div className="overlay-panel-title">
+          <span>QUESTION</span>
+          <span>Transcript</span>
+        </div>
+        <div className="question-surface">
+          How would you handle a project that&apos;s falling behind?
+        </div>
+      </div>
+
+      <div className="overlay-panel answer-panel">
+        <div className="overlay-panel-title">
+          <span>ANSWER</span>
+          <span>⌘, / ⌘. scroll</span>
+        </div>
+        <div className="answer-surface">
+          <p>
+            <b>
+              First, I would separate the critical path from work we can defer.
+            </b>
+          </p>
+          <p>
+            Then I&apos;d confirm the blockers with the team and reset the plan
+            around the highest-impact deliverables.
+          </p>
+          <p>
+            For example, if one integration is holding the release, I&apos;d
+            ship the stable workflow first and move lower-risk work into the
+            next milestone.
+          </p>
+        </div>
+      </div>
+
+      <div className="overlay-bottom-bar">
+        <button className="run-button">ϟ&nbsp;&nbsp;Run</button>
+        <button>↻&nbsp;&nbsp;Retry</button>
+        <button>‹</button>
+        <button>›</button>
+        <button>Clear</button>
+        <span />
+        <button>?</button>
+      </div>
+
+      <div className="opacity-control">
+        <span>◐</span>
+        <b>Opacity</b>
+        <span className="slider">
+          <i />
+        </span>
+        <code>70%</code>
+        <button>0%</button>
+        <button className="opacity-active">70%</button>
+      </div>
+    </div>
+  );
+}
+
+function RealDashboard() {
+  const navItems = [
+    ["▦", "Home"],
+    ["▤", "Sessions"],
+    ["▧", "Context"],
+    ["≋", "Audio"],
+    ["▯", "Phone"],
+    ["⚙", "Settings"],
+  ];
+
+  return (
+    <div className="real-dashboard" aria-label="CueAside dashboard">
+      <div className="dash-titlebar">
+        <WindowDots />
+      </div>
+      <aside className="dash-sidebar">
+        <div className="dash-brand">
+          <span className="dash-icon">
+            <WaveMark />
+          </span>
+          <div>
+            <strong>CueAside</strong>
+            <small>Speaking copilot</small>
+          </div>
+        </div>
+        <div className="menu-label">MENU</div>
+        <div className="dash-menu">
+          {navItems.map(([icon, label], index) => (
+            <div className={index === 0 ? "selected" : ""} key={label}>
+              <i>{icon}</i>
+              <span>{label}</span>
+            </div>
+          ))}
+        </div>
+        <div className="dash-session-status">
+          <span />
+          General · Cue
+        </div>
+        <button className="start-session">▶&nbsp;&nbsp;Start Session</button>
+      </aside>
+
+      <div className="dash-content">
+        <div className="dash-heading">
+          <h3>Overview</h3>
+          <p>Start a session to open the private overlay.</p>
+        </div>
+        <div className="dash-card session-card">
+          <span className="idle-indicator">
+            <i />
+          </span>
+          <div>
+            <strong>No active session</strong>
+            <p>The overlay opens in focus mode when you start.</p>
+          </div>
+          <span className="sleep-mark">☾</span>
+        </div>
+        <div className="dash-chips">
+          <div>
+            <small>ROLE</small>
+            <b>General</b>
+          </div>
+          <div>
+            <small>STYLE</small>
+            <b>Cue</b>
+          </div>
+          <div>
+            <small>LANGUAGE</small>
+            <b>English</b>
+          </div>
+          <div>
+            <small>CONTEXT</small>
+            <b className="context-on">ON</b>
+          </div>
+        </div>
+        <small className="chip-hint">Click a chip to cycle its value.</small>
+        <div className="recent-heading">
+          <b>Recent sessions</b>
+          <span>View all</span>
+        </div>
+        <div className="dash-card recent-card">
+          <div>
+            <span className="file-icon">▤</span>
+            <p>
+              <b>Product interview</b>
+              <small>Today · 7 questions</small>
+            </p>
+          </div>
+          <span>›</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
     <main>
       <header className="site-header">
         <a className="brand" href="#" aria-label="CueAside home">
-          <Image
+          <img
             src="/cueaside-icon.png"
             alt=""
             width={34}
             height={34}
-            priority
           />
           <span>CueAside</span>
         </a>
@@ -50,21 +237,20 @@ export default function Home() {
       </header>
 
       <section className="hero" id="product">
-        <div className="hero-glow" aria-hidden="true" />
         <div className="hero-copy">
           <div className="eyebrow">
             <span className="pulse" />
-            AI speaking copilot for macOS
+            Native speaking copilot for macOS
           </div>
           <h1>
-            The right words,
+            Stay present.
             <br />
-            <span>right when you need them.</span>
+            <span>Find the words.</span>
           </h1>
           <p>
-            CueAside listens for the question, draws from your own context, and
-            gives you a clear opening plus a structured answer—so you can speak
-            naturally, not read a script.
+            CueAside listens for the question and puts a speaking-ready answer
+            in a private overlay—grounded in the resume, notes, and context you
+            choose.
           </p>
           <div className="hero-actions">
             <a className="primary-button" href="#early-access">
@@ -76,278 +262,171 @@ export default function Home() {
             </a>
           </div>
           <div className="availability">
-            <span className="apple-mark" aria-hidden="true">
-              ●
-            </span>
+            <span aria-hidden="true">●</span>
             Coming soon for macOS
           </div>
         </div>
 
-        <div className="product-stage" aria-label="CueAside product preview">
-          <div className="stage-orbit orbit-one" />
-          <div className="stage-orbit orbit-two" />
-          <div className="app-window">
-            <div className="window-bar">
-              <div className="traffic-lights" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="session-status">
-                <span />
-                Interview session
-              </div>
-              <div className="shortcut">⌘ ⇧ Space</div>
-            </div>
-
-            <div className="question-block">
-              <div className="question-label">Question detected</div>
-              <div className="question">
-                Walk me through a pipeline you&apos;re proud of.
-              </div>
-              <Waveform />
-            </div>
-
-            <div className="response-block">
-              <div className="response-meta">
-                <span>Ready to say</span>
-                <span className="mode-pill">Thinking</span>
-              </div>
-              <div className="opening-cue">
-                I built a hybrid batch and streaming pipeline that made Cash
-                App reporting reliable.
-              </div>
-              <div className="answer-steps">
-                <div className="answer-step">
-                  <span>01</span>
-                  <p>
-                    <strong>Validate early.</strong> Lambda checked the schema
-                    before valid events reached MSK.
-                  </p>
-                </div>
-                <div className="answer-step">
-                  <span>02</span>
-                  <p>
-                    <strong>Keep replay simple.</strong> Both paths landed in
-                    partitioned S3 for backfills.
-                  </p>
-                </div>
-                <div className="answer-step">
-                  <span>03</span>
-                  <p>
-                    <strong>Publish trusted data.</strong> Glue and Redshift
-                    served reporting-ready marts.
-                  </p>
-                </div>
-              </div>
-            </div>
+        <div className="product-stage">
+          <div className="stage-label">
+            <span />
+            Actual CueAside overlay
           </div>
-
-          <div className="floating-cue">
-            <div className="mini-wave" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-            <div>
-              <strong>Listening</strong>
-              <small>Answer appears when the question ends</small>
-            </div>
-          </div>
+          <RealOverlay />
         </div>
       </section>
 
-      <section className="proof-strip" aria-label="Product benefits">
-        <div>
-          <strong>Fast opening</strong>
-          <span>Start speaking without the awkward pause.</span>
+      <section className="trust-row" aria-label="Product attributes">
+        <span>Native macOS app</span>
+        <i />
+        <span>No meeting bot</span>
+        <i />
+        <span>Context-aware answers</span>
+        <i />
+        <span>Interview and meeting modes</span>
+      </section>
+
+      <section className="product-truth">
+        <div className="section-heading left-heading">
+          <div className="eyebrow">The actual product</div>
+          <h2>Prepare in the dashboard. Speak from the overlay.</h2>
+          <p>
+            CueAside has two clear states. Set your role, language, answer
+            style, and context before the call. During the conversation, only
+            the focused question-and-answer window stays in front of you.
+          </p>
         </div>
-        <div>
-          <strong>Your context</strong>
-          <span>Ground every answer in your real experience.</span>
-        </div>
-        <div>
-          <strong>Natural delivery</strong>
-          <span>Simple wording, clear structure, easy to say.</span>
+        <div className="dashboard-stage">
+          <div className="stage-label dark-label">
+            <span />
+            CueAside dashboard
+          </div>
+          <RealDashboard />
         </div>
       </section>
 
       <section className="process-section" id="how-it-works">
         <div className="section-heading">
           <div className="eyebrow">How it works</div>
-          <h2>Stay in the conversation.</h2>
-          <p>
-            CueAside handles the gap between hearing a question and knowing
-            exactly how to answer it.
-          </p>
+          <h2>From preparation to a natural answer.</h2>
         </div>
-
         <div className="process-grid">
           <article>
-            <div className="step-number">01</div>
-            <div className="step-icon ear-icon" aria-hidden="true">
-              <Waveform />
-            </div>
-            <h3>Hear the question</h3>
+            <span className="step-number">01</span>
+            <h3>Add your context</h3>
             <p>
-              CueAside recognizes when the other person finishes asking and
-              prepares the next move.
+              Bring the resume, role, project stories, or meeting notes you
+              already prepared.
             </p>
           </article>
           <article>
-            <div className="step-number">02</div>
-            <div className="step-icon context-icon" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-            <h3>Use what you know</h3>
+            <span className="step-number">02</span>
+            <h3>Start a session</h3>
             <p>
-              Your resume, project stories, and meeting notes shape an answer
-              that sounds like you.
+              CueAside listens alongside your call and recognizes when a real
+              question has landed.
             </p>
           </article>
           <article>
-            <div className="step-number">03</div>
-            <div className="step-icon cue-icon" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-            <h3>Speak with a clear path</h3>
+            <span className="step-number">03</span>
+            <h3>Glance, then speak</h3>
             <p>
-              Begin with one strong sentence, then follow a concise structure
-              with a relevant example.
+              Start with one strong sentence. Follow the short structure only
+              when you need it.
             </p>
           </article>
         </div>
       </section>
 
-      <section className="answer-section">
-        <div className="answer-demo">
-          <div className="demo-topline">
-            <div>
-              <span className="dot" />
-              Live answer
-            </div>
-            <span>Question 4 of 7</span>
-          </div>
-          <div className="demo-question">
-            How do you keep streaming and batch privacy rules consistent?
-          </div>
-          <div className="demo-opening">
-            Config-driven rules keep one privacy policy consistent across both
-            paths.
-          </div>
-          <div className="demo-list">
-            <p>
-              <b>First, separate policy from code.</b> Glue reads the fields to
-              mask or tokenize from configuration.
-            </p>
-            <p>
-              <b>Then, reuse the same rules.</b> Streaming and batch jobs apply
-              them before writing clean data.
-            </p>
-            <p>
-              <b>The result is safer change.</b> A policy update is easier to
-              review and less likely to create drift.
-            </p>
-          </div>
-        </div>
-
-        <div className="answer-copy">
-          <div className="eyebrow">Built to be spoken</div>
-          <h2>Not another wall of AI text.</h2>
+      <section className="difference-section">
+        <div className="difference-copy">
+          <div className="eyebrow">Why CueAside</div>
+          <h2>Help for speaking—not another chat window.</h2>
           <p>
-            Every answer starts with the point. The detail follows in a natural
-            order, with fewer stacked lists and cleaner transitions.
+            Generic AI gives you text. CueAside shapes the answer for a live
+            conversation: the point comes first, the wording stays simple, and
+            precise terms remain precise.
           </p>
-          <ul>
-            <li>
-              <span>✓</span> Simple words around precise technical terms
-            </li>
-            <li>
-              <span>✓</span> Short thoughts that are easy to say out loud
-            </li>
-            <li>
-              <span>✓</span> Relevant examples from the context you provide
-            </li>
-          </ul>
+        </div>
+        <div className="difference-list">
+          <article>
+            <span>01</span>
+            <div>
+              <h3>Your material, surfaced at the right moment</h3>
+              <p>
+                Answers can draw from the context you provide instead of
+                inventing a generic story.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span>02</span>
+            <div>
+              <h3>A first sentence you can say immediately</h3>
+              <p>
+                The opening gives you a clean way into the answer while the
+                supporting detail remains available below it.
+              </p>
+            </div>
+          </article>
+          <article>
+            <span>03</span>
+            <div>
+              <h3>Cue or Read, depending on the moment</h3>
+              <p>
+                Use compact guidance when you know the story, or more complete
+                wording when language is the harder part.
+              </p>
+            </div>
+          </article>
         </div>
       </section>
 
       <section className="use-cases" id="use-cases">
         <div className="section-heading">
-          <div className="eyebrow">Where CueAside helps</div>
-          <h2>For conversations where wording matters.</h2>
+          <div className="eyebrow">Built for high-pressure conversations</div>
+          <h2>Use what you prepared when it matters.</h2>
         </div>
         <div className="use-case-grid">
-          <article className="featured-card">
-            <div className="card-kicker">Interviews</div>
-            <h3>Turn your real experience into a strong story.</h3>
+          <article>
+            <span className="case-label">INTERVIEWS</span>
+            <h3>Answer with your real experience.</h3>
             <p>
-              Answer technical and behavioral questions with a clear point,
-              logical detail, and the right example.
+              Turn your resume and project stories into a clear opening,
+              relevant detail, and a natural example.
             </p>
-            <div className="card-visual interview-visual">
-              <span>Tell me about a system you designed.</span>
-              <div>
-                <b>Start with the outcome.</b>
-                <small>Then explain the architecture and tradeoff.</small>
-              </div>
+            <div className="case-prompt">
+              <small>QUESTION</small>
+              Tell me about a difficult tradeoff you made.
             </div>
           </article>
           <article>
-            <div className="card-kicker">Meetings</div>
-            <h3>Contribute clearly without losing the thread.</h3>
+            <span className="case-label">MEETINGS</span>
+            <h3>Contribute without losing the thread.</h3>
             <p>
-              Use the discussion and your notes to frame a concise response,
-              update, or follow-up question.
+              Pull the right point from your notes and the live discussion
+              before the moment passes.
             </p>
-            <div className="card-visual meeting-visual">
-              <div className="avatar-stack" aria-hidden="true">
-                <span>AM</span>
-                <span>JL</span>
-                <span>YG</span>
-              </div>
-              <div className="meeting-line">
-                <Waveform />
-              </div>
+            <div className="case-prompt">
+              <small>QUESTION</small>
+              What should we prioritize before launch?
             </div>
           </article>
-        </div>
-      </section>
-
-      <section className="privacy-section" id="privacy">
-        <div className="privacy-mark" aria-hidden="true">
-          <span />
-        </div>
-        <div>
-          <div className="eyebrow">Context on your terms</div>
-          <h2>Your experience stays yours.</h2>
-          <p>
-            You choose the resume, stories, or notes CueAside uses. That context
-            makes suggestions more relevant without turning them into generic
-            scripts.
-          </p>
         </div>
       </section>
 
       <section className="closing-cta" id="early-access">
-        <div className="closing-glow" aria-hidden="true" />
-        <Image
+        <img
           src="/cueaside-icon.png"
           alt=""
           width={70}
           height={70}
         />
         <div className="eyebrow">CueAside for macOS</div>
-        <h2>Never get stuck on the first sentence again.</h2>
+        <h2>Keep your attention on the person—not the prompt.</h2>
         <p>
-          We&apos;re preparing the first public release. Come back soon for
-          early access and launch pricing.
+          The first public release is in progress. Join early access when
+          CueAside opens.
         </p>
         <div className="coming-soon-button">
           Coming soon
@@ -357,10 +436,10 @@ export default function Home() {
 
       <footer>
         <a className="brand footer-brand" href="#">
-          <Image src="/cueaside-icon.png" alt="" width={28} height={28} />
+          <img src="/cueaside-icon.png" alt="" width={28} height={28} />
           <span>CueAside</span>
         </a>
-        <p>Clearer answers. More natural conversations.</p>
+        <p>Prepare once. Speak naturally.</p>
         <span>© 2026 CueAside</span>
       </footer>
     </main>

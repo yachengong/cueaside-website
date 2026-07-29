@@ -75,13 +75,12 @@ function RealOverlay() {
           <span>⌘, / ⌘. scroll</span>
         </div>
         <div className="answer-surface">
-          <div className="answer-opening">
-            <small>START HERE</small>
+          <p className="answer-lead">
             <b>
               First, I&apos;d separate the critical path from work we can safely
               defer.
             </b>
-          </div>
+          </p>
           <div className="answer-flow">
             <p>
               <small>WHY</small>

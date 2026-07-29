@@ -436,31 +436,11 @@ nav a:hover,
   line-height: 1.48;
 }
 
-.answer-opening {
-  position: relative;
-  padding: 12px 13px 12px 16px;
-  overflow: hidden;
-  border: 1px solid rgba(47, 121, 232, 0.34);
-  border-radius: 10px;
-  background: rgba(47, 121, 232, 0.11);
-}
-
-.answer-opening::before {
-  content: "";
-  position: absolute;
-  inset: 7px auto 7px 0;
-  width: 3px;
-  border-radius: 99px;
-  background: #438cf1;
-}
-
-.answer-opening small,
-.answer-opening b,
+.answer-lead b,
 .answer-flow small {
   display: block;
 }
 
-.answer-opening small,
 .answer-flow small {
   color: #6aa7ff;
   font-size: 7px;
@@ -468,15 +448,18 @@ nav a:hover,
   letter-spacing: 0.12em;
 }
 
-.answer-opening b {
-  margin-top: 6px;
+.answer-lead {
+  margin: 0;
+}
+
+.answer-lead b {
   font-size: 15px;
   font-weight: 760;
   line-height: 1.42;
 }
 
 .answer-flow {
-  margin: 10px 5px 0 13px;
+  margin: 12px 5px 0 0;
   padding-left: 12px;
   border-left: 1px solid rgba(106, 167, 255, 0.28);
 }

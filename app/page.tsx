@@ -1,10 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 
-const Arrow = () => (
-  <svg viewBox="0 0 20 20" aria-hidden="true">
-    <path d="M4 10h11M11 6l4 4-4 4" />
-  </svg>
-);
+const Arrow = () => <span aria-hidden="true">→</span>;
 
 const WaveMark = () => (
   <span className="wave-mark" aria-hidden="true">
@@ -33,7 +29,7 @@ function RealOverlay() {
           <div className="overlay-state">
             <div>
               <strong>Answering</strong>
-              <span>General · EN · CUE · BALANCED · CTX</span>
+              <span>General · EN · BALANCED · CTX</span>
             </div>
             <small>Answer ready</small>
           </div>
@@ -44,7 +40,6 @@ function RealOverlay() {
         </div>
 
         <div className="overlay-action-row">
-          <span className="style-pill">≡&nbsp;&nbsp;Cue</span>
           <div className="overlay-spacer" />
           <button className="active-control" aria-label="Listening">
             ◼
@@ -89,16 +84,15 @@ function RealOverlay() {
             </p>
             <p>
               <small>WHAT I&apos;D DO</small>
-              I&apos;d confirm the blocker with the owners, separate must-have
-              work from deferrable scope, and publish a recovery plan with new
-              milestones.
+              <b>I&apos;d reset the plan around the real constraint.</b>
+              Then I&apos;d separate launch-critical work from scope we can
+              safely move.
             </p>
             <p>
               <small>EXAMPLE</small>
-              On a data migration, an upstream schema change delayed testing.
-              We kept the launch-critical tables in scope, moved a historical
-              backfill to the next sprint, and gave stakeholders daily
-              checkpoints until the release was stable.
+              <b>I&apos;d make the trade-off visible to stakeholders.</b>
+              For example, we could protect the launch path and schedule the
+              historical backfill for the next milestone.
             </p>
           </div>
         </div>
@@ -170,7 +164,7 @@ function RealDashboard() {
         </div>
         <div className="dash-session-status">
           <span />
-          General · Cue
+          General · English
         </div>
         <button className="start-session">▶&nbsp;&nbsp;Start Session</button>
       </aside>
@@ -185,12 +179,16 @@ function RealDashboard() {
             <i />
           </span>
           <div>
-            <strong>No active session</strong>
+            <strong>Session live</strong>
             <p>
-              The overlay opens in focus mode when you start from the sidebar.
+              Answers are saved to this session while the overlay stays ready.
             </p>
           </div>
-          <span className="sleep-mark">☾</span>
+          <span className="sleep-mark">◉</span>
+        </div>
+        <div className="session-name-demo">
+          <small>SESSION NAME</small>
+          <div>Architecture interview · July 29</div>
         </div>
         <div className="dash-chips">
           <div>
@@ -198,19 +196,23 @@ function RealDashboard() {
             <b>DE</b>
           </div>
           <div>
-            <small>STYLE</small>
-            <b>Read</b>
-          </div>
-          <div>
             <small>LANGUAGE</small>
-            <b>EN</b>
+            <b>English</b>
           </div>
           <div>
             <small>CONTEXT</small>
             <b className="context-on">ON</b>
           </div>
         </div>
-        <small className="chip-hint">Click a chip to cycle its value.</small>
+        <div className="depth-demo">
+          <small>THINKING DEPTH</small>
+          <div>
+            <span>Instinct</span>
+            <span className="selected">Balanced</span>
+            <span>Precise</span>
+            <span>Thinking</span>
+          </div>
+        </div>
         <div className="recent-heading">
           <b>Recent sessions</b>
           <span>View all</span>
@@ -246,7 +248,8 @@ export default function Home() {
         <nav aria-label="Main navigation">
           <a href="#product">Product</a>
           <a href="#how-it-works">How it works</a>
-          <a href="#use-cases">Use cases</a>
+          <a href="#why-cueaside">Why CueAside</a>
+          <a href="#faq">FAQ</a>
         </nav>
 
         <a className="header-cta" href="#early-access">
@@ -259,17 +262,17 @@ export default function Home() {
         <div className="hero-copy">
           <div className="eyebrow">
             <span className="pulse" />
-            Native speaking copilot for macOS
+            Live AI help for interviews and meetings
           </div>
           <h1>
-            Stay present.
+            Know what to say.
             <br />
-            <span>Find the words.</span>
+            <span>Right when you need it.</span>
           </h1>
           <p>
-            CueAside listens for the question and puts a speaking-ready answer
-            in a private overlay—grounded in the resume, notes, and context you
-            choose.
+            CueAside listens to the conversation and gives you a speaking-ready
+            answer in the moment—structured around your own context and easy to
+            say out loud.
           </p>
           <div className="hero-actions">
             <a className="primary-button" href="#early-access">
@@ -282,7 +285,7 @@ export default function Home() {
           </div>
           <div className="availability">
             <span aria-hidden="true">●</span>
-            Coming soon for macOS
+            Early access for macOS
           </div>
         </div>
 
@@ -302,7 +305,7 @@ export default function Home() {
         <i />
         <span>Context-aware answers</span>
         <i />
-        <span>Interview and meeting modes</span>
+        <span>11 spoken languages</span>
       </section>
 
       <section className="product-truth">
@@ -310,9 +313,9 @@ export default function Home() {
           <div className="eyebrow">The actual product</div>
           <h2>Prepare in the dashboard. Speak from the overlay.</h2>
           <p>
-            CueAside has two clear states. Set your role, language, answer
-            style, and context before the call. During the conversation, only
-            the focused question-and-answer window stays in front of you.
+            Set your role, language, context, and thinking depth before the
+            conversation. During the call, CueAside keeps the question and one
+            guided answer in a focused overlay.
           </p>
         </div>
         <div className="dashboard-stage">
@@ -357,10 +360,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="difference-section">
+      <section className="difference-section" id="why-cueaside">
         <div className="difference-copy">
           <div className="eyebrow">Why CueAside</div>
-          <h2>Help for speaking—not another chat window.</h2>
+          <h2>Built for the moment you have to answer.</h2>
           <p>
             Generic AI gives you text. CueAside shapes the answer for a live
             conversation: the point comes first, the wording stays simple, and
@@ -391,13 +394,77 @@ export default function Home() {
           <article>
             <span>03</span>
             <div>
-              <h3>Cue or Read, depending on the moment</h3>
+              <h3>One answer you can scan or read</h3>
               <p>
-                Use compact guidance when you know the story, or more complete
-                wording when language is the harder part.
+                Each blue point starts with a bold topic sentence, followed by
+                the explanation or example you can continue reading.
               </p>
             </div>
           </article>
+        </div>
+      </section>
+
+      <section className="in-the-moment-section">
+        <div className="section-heading">
+          <div className="eyebrow">Help during the call, not after it</div>
+          <h2>Ready before the moment passes.</h2>
+          <p>
+            CueAside combines live transcription, the context you prepare, and
+            a guided answer designed for speaking—not for reading like a chat.
+          </p>
+        </div>
+        <div className="moment-grid">
+          <article className="moment-card moment-card-large">
+            <div className="moment-icon">◎</div>
+            <span className="case-label">NO MEETING BOT</span>
+            <h3>Works alongside the conversation.</h3>
+            <p>
+              CueAside listens from your Mac, so it does not join the attendee
+              list or interrupt the call.
+            </p>
+            <div className="participant-demo">
+              <div>
+                <span className="participant-avatar">Y</span>
+                <p><b>You</b><small>Speaking</small></p>
+              </div>
+              <div>
+                <span className="participant-avatar second">A</span>
+                <p><b>Alex</b><small>Interviewer</small></p>
+              </div>
+              <strong>2 participants · no bot</strong>
+            </div>
+          </article>
+
+          <article className="moment-card">
+            <div className="moment-icon">◌</div>
+            <span className="case-label">SCREEN-SHARE AWARE</span>
+            <h3>Visible to you, hidden from shared content.</h3>
+            <p>
+              Keep the overlay near the conversation while CueAside excludes
+              its own windows from supported screen captures.
+            </p>
+          </article>
+
+          <article className="moment-card">
+            <div className="moment-icon">文</div>
+            <span className="case-label">MULTILINGUAL</span>
+            <h3>Answers shaped in the language you speak.</h3>
+            <p>
+              Eleven language-specific speaking styles keep the phrasing
+              natural while standard technical terms stay precise.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="compatibility-section" aria-label="Compatible meeting tools">
+        <p>Works wherever the conversation happens</p>
+        <div>
+          <span>Zoom</span>
+          <span>Google Meet</span>
+          <span>Microsoft Teams</span>
+          <span>Webex</span>
+          <span>Slack</span>
         </div>
       </section>
 
@@ -492,6 +559,60 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="faq-section" id="faq">
+        <div className="section-heading left-heading">
+          <div className="eyebrow">Frequently asked questions</div>
+          <h2>What to know before your first session.</h2>
+        </div>
+        <div className="faq-list">
+          <details open>
+            <summary>What is CueAside?</summary>
+            <p>
+              CueAside is a macOS speaking copilot. It listens for questions and
+              shows a structured answer you can say naturally during an
+              interview, meeting, or professional conversation.
+            </p>
+          </details>
+          <details>
+            <summary>Does CueAside join my meeting?</summary>
+            <p>
+              No. It runs on your Mac and listens through the audio input you
+              choose. It does not appear as another participant.
+            </p>
+          </details>
+          <details>
+            <summary>Can it use my resume or meeting notes?</summary>
+            <p>
+              Yes. You decide which brief and supporting notes are available.
+              CueAside uses that material to ground the answer without turning
+              unsupported details into personal experience.
+            </p>
+          </details>
+          <details>
+            <summary>What makes the answer easier to say?</summary>
+            <p>
+              The first sentence gives you a direct opening. Each blue point
+              then adds one bold topic sentence and a short explanation or
+              example, so you can stop or continue without losing the thread.
+            </p>
+          </details>
+          <details>
+            <summary>Which languages are supported?</summary>
+            <p>
+              CueAside currently supports English, Chinese, Spanish, French,
+              German, Japanese, Korean, Portuguese, Italian, Hindi, and Arabic.
+            </p>
+          </details>
+          <details>
+            <summary>When can I download it?</summary>
+            <p>
+              The macOS release is in early access. The public download and
+              checkout will appear here when distribution is ready.
+            </p>
+          </details>
+        </div>
+      </section>
+
       <section className="closing-cta" id="early-access">
         <img
           src="/cueaside-icon.png"
@@ -500,13 +621,13 @@ export default function Home() {
           height={70}
         />
         <div className="eyebrow">CueAside for macOS</div>
-        <h2>Keep your attention on the person—not the prompt.</h2>
+        <h2>Speak clearly before the moment moves on.</h2>
         <p>
-          The first public release is in progress. Join early access when
-          CueAside opens.
+          CueAside for macOS is entering early access. The download and secure
+          checkout will open here first.
         </p>
         <div className="coming-soon-button">
-          Coming soon
+          Early access
           <span>macOS</span>
         </div>
       </section>

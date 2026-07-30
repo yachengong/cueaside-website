@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export const metadata = {
   title: "Checkout canceled — CueAside",
 };
@@ -17,4 +19,3 @@ export default function CheckoutCanceled() {
     </main>
   );
 }
-import Image from "next/image";

@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export const metadata = {
   title: "Subscription active — CueAside",
 };
@@ -20,4 +22,3 @@ export default function CheckoutSuccess() {
     </main>
   );
 }
-import Image from "next/image";

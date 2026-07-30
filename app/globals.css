@@ -1493,6 +1493,68 @@ nav a:hover,
   text-align: right;
 }
 
+.privacy-section {
+  width: min(1060px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 130px 0 0;
+}
+
+.privacy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.privacy-grid article {
+  padding: 30px 32px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.privacy-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--purple-soft);
+  color: var(--purple);
+  font-size: 17px;
+}
+
+.privacy-grid h3 {
+  margin: 18px 0 8px;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.privacy-grid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+.privacy-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.privacy-link span {
+  transition: transform 160ms ease;
+}
+
+.privacy-link:hover span {
+  transform: translateX(3px);
+}
+
 .use-case-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1618,6 +1680,7 @@ nav a:hover,
 }
 
 .closing-cta img {
+  margin: 0 auto;
   border-radius: 18px;
   box-shadow: 0 18px 35px rgba(68, 58, 116, 0.16);
 }
@@ -1638,27 +1701,103 @@ nav a:hover,
   margin: 0 auto;
 }
 
-.coming-soon-button {
-  width: fit-content;
+.waitlist-form {
+  max-width: 520px;
   margin: 30px auto 0;
-  padding: 13px 15px 13px 19px;
+}
+
+.waitlist-row {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 10px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: white;
+  box-shadow: 0 13px 30px rgba(23, 23, 26, 0.07);
+}
+
+.waitlist-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px 10px 18px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.waitlist-row input::placeholder {
+  color: #9c9aa3;
+}
+
+.waitlist-submit {
+  padding: 12px 22px;
+  border: none;
   border-radius: 999px;
   background: #17171a;
   color: white;
-  font-size: 12px;
-  font-weight: 740;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
 }
 
-.coming-soon-button span {
-  padding: 5px 8px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.12);
-  color: #cdc7f6;
-  font-size: 8px;
-  letter-spacing: 0.05em;
+.waitlist-submit:hover {
+  background: #29292e;
+  transform: translateY(-1px);
+}
+
+.waitlist-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+
+.waitlist-note,
+.waitlist-error {
+  margin: 14px 0 0;
+  font-size: 12px;
+}
+
+.waitlist-note {
+  color: #8b8992;
+}
+
+.waitlist-error {
+  color: #b3483f;
+  font-weight: 600;
+}
+
+.waitlist-done {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: fit-content;
+  margin: 30px auto 0;
+  padding: 14px 22px;
+  border-radius: 999px;
+  background: #17171a;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.waitlist-done span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--green);
+  color: white;
+  font-size: 11px;
 }
 
 footer {
@@ -1681,8 +1820,128 @@ footer p {
   margin: 0;
 }
 
-footer > span {
+.footer-meta {
   justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.footer-meta a {
+  color: #5d5c63;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.footer-meta a:hover {
+  color: var(--ink);
+}
+
+.legal-page {
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.legal-header {
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-back {
+  color: #6c6b72;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.legal-back:hover {
+  color: var(--ink);
+}
+
+.legal-body {
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 64px 0 90px;
+}
+
+.legal-body h1 {
+  margin: 16px 0 10px;
+  font-size: clamp(30px, 4.5vw, 44px);
+  line-height: 1.06;
+  letter-spacing: -0.045em;
+}
+
+.legal-updated {
+  margin: 0 0 36px;
+  color: #8b8992;
+  font-size: 13px;
+}
+
+.legal-body section {
+  margin-top: 34px;
+}
+
+.legal-body h2 {
+  margin: 0 0 12px;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.legal-body p {
+  margin: 0 0 14px;
+  color: #4b4a51;
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+
+.legal-body ul {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  color: #4b4a51;
+  font-size: 14.5px;
+  line-height: 1.75;
+  list-style: disc;
+}
+
+.legal-body li {
+  margin-bottom: 8px;
+}
+
+.legal-body a {
+  color: var(--ink);
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-color: rgba(23, 23, 26, 0.25);
+  text-underline-offset: 3px;
+}
+
+.legal-body strong {
+  color: var(--ink);
+}
+
+.legal-footer {
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 26px 0 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  color: #85838a;
+  font-size: 11px;
+}
+
+.legal-footer nav {
+  display: flex;
+  gap: 18px;
+}
+
+.legal-footer a:hover {
+  color: var(--ink);
 }
 
 @media (max-width: 1000px) {
@@ -1724,6 +1983,7 @@ footer > span {
   .difference-section,
   .in-the-moment-section,
   .compatibility-section,
+  .privacy-section,
   .user-voice-section,
   .use-cases,
   .faq-section,
@@ -1865,6 +2125,14 @@ footer > span {
     row-gap: 12px;
   }
 
+  .privacy-section {
+    padding-top: 100px;
+  }
+
+  .privacy-grid {
+    grid-template-columns: 1fr;
+  }
+
   .use-case-grid {
     grid-template-columns: 1fr;
   }
@@ -1902,6 +2170,21 @@ footer > span {
 
   footer p {
     display: none;
+  }
+
+  .waitlist-row {
+    flex-direction: column;
+    padding: 10px;
+    border-radius: 22px;
+  }
+
+  .waitlist-row input {
+    padding: 10px 10px 4px;
+    text-align: center;
+  }
+
+  .waitlist-submit {
+    padding: 13px 22px;
   }
 }
 

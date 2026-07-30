@@ -113,6 +113,23 @@ export async function consumeDailyUsage(input: {
   });
 }
 
+export async function insertWaitlistSignup(input: {
+  email: string;
+  source: string;
+}): Promise<void> {
+  await adminRequest("waitlist_signups?on_conflict=email", {
+    method: "POST",
+    headers: {
+      Prefer: "resolution=ignore-duplicates,return=minimal",
+    },
+    body: JSON.stringify({
+      email: input.email,
+      source: input.source,
+      created_at: Math.floor(Date.now() / 1_000),
+    }),
+  });
+}
+
 export async function consumeRateLimit(input: {
   key: string;
   maximum: number;

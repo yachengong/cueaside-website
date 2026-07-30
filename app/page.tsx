@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 
+import EarlyAccessForm from "./early-access-form";
 import LiveOverlayDemo from "./live-overlay-demo";
 
 const Arrow = () => <span aria-hidden="true">→</span>;
@@ -368,6 +369,56 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="privacy-section" id="privacy">
+        <div className="section-heading left-heading">
+          <div className="eyebrow">Private by design</div>
+          <h2>Built to help you speak—not to collect your conversations.</h2>
+          <p>
+            CueAside processes conversations in the moment and keeps almost
+            nothing. Here is exactly where your data lives.
+          </p>
+        </div>
+        <div className="privacy-grid">
+          <article>
+            <span className="privacy-glyph">◇</span>
+            <h3>No transcripts on our servers</h3>
+            <p>
+              Answer requests run with storage disabled. Once your answer is
+              delivered, the audio, transcript, and response are gone from our
+              side.
+            </p>
+          </article>
+          <article>
+            <span className="privacy-glyph">⌂</span>
+            <h3>Sessions stay on your Mac</h3>
+            <p>
+              Your context, notes, and saved Q/A history live in the app on
+              your machine—delete them there and they are gone.
+            </p>
+          </article>
+          <article>
+            <span className="privacy-glyph">◈</span>
+            <h3>Keys never ship in the app</h3>
+            <p>
+              All AI requests go through the CueAside API. There are no API
+              keys inside the macOS app to leak or extract.
+            </p>
+          </article>
+          <article>
+            <span className="privacy-glyph">◍</span>
+            <h3>Only the minimum on file</h3>
+            <p>
+              Our servers keep your email, subscription status, and daily
+              request counts—numbers, never conversation content.
+            </p>
+          </article>
+        </div>
+        <a className="privacy-link" href="/privacy/">
+          Read the full privacy policy
+          <Arrow />
+        </a>
+      </section>
+
       <section className="user-voice-section">
         <div className="section-heading">
           <div className="eyebrow">What people need in the moment</div>
@@ -506,8 +557,9 @@ export default function Home() {
           <details>
             <summary>When can I download it?</summary>
             <p>
-              The macOS release is in early access. The public download and
-              checkout will appear here when distribution is ready.
+              The macOS release is in early access. Join the list at the bottom
+              of this page and your download link will arrive by email as
+              invites roll out.
             </p>
           </details>
         </div>
@@ -523,13 +575,10 @@ export default function Home() {
         <div className="eyebrow">CueAside for macOS</div>
         <h2>Speak clearly before the moment moves on.</h2>
         <p>
-          CueAside for macOS is entering early access. The download and secure
-          checkout will open here first.
+          CueAside for macOS is entering early access. Leave your email and the
+          download link will reach you first.
         </p>
-        <div className="coming-soon-button">
-          Early access
-          <span>macOS</span>
-        </div>
+        <EarlyAccessForm />
       </section>
 
       <footer>
@@ -538,7 +587,11 @@ export default function Home() {
           <span>CueAside</span>
         </a>
         <p>Prepare once. Speak naturally.</p>
-        <span>© 2026 CueAside</span>
+        <div className="footer-meta">
+          <a href="/privacy/">Privacy</a>
+          <a href="/terms/">Terms</a>
+          <span>© 2026 CueAside</span>
+        </div>
       </footer>
     </main>
   );

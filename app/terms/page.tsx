@@ -15,20 +15,22 @@ export const metadata: Metadata = {
 export default function TermsOfService() {
   return (
     <main className="legal-page">
-      <header className="legal-header">
-        <Link className="brand" href="/" aria-label="CueAside home">
-          <img src="/cueaside-icon.png" alt="" width={30} height={30} />
-          <span>CueAside</span>
+      <header className="masthead">
+        <Link className="masthead-brand" href="/" aria-label="CueAside home">
+          <img src="/cueaside-icon.png" alt="" width={28} height={28} />
+          CueAside
         </Link>
-        <Link className="legal-back" href="/">
-          ← Back to site
+        <Link className="mono" href="/">
+          ← Back to the document
         </Link>
       </header>
 
       <article className="legal-body">
-        <div className="eyebrow">Terms of Service</div>
+        <div className="mono" style={{ color: "var(--stamp)" }}>
+          Terms of Service
+        </div>
         <h1>Plain terms for an early-access product.</h1>
-        <p className="legal-updated">Last updated: July 29, 2026</p>
+        <p className="legal-updated">Last updated: July 30, 2026</p>
 
         <section>
           <h2>What CueAside is</h2>
@@ -152,9 +154,10 @@ export default function TermsOfService() {
         </section>
       </article>
 
-      <footer className="legal-footer">
-        <span>© 2026 CueAside</span>
+      <footer className="doc-footer">
+        <span>© 2026 CueAside · macOS</span>
         <nav>
+          <Link href="/">Home</Link>
           <a href="/privacy/">Privacy</a>
           <a href="/terms/">Terms</a>
         </nav>

@@ -3,9 +3,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://cueaside.com"),
-  title: "CueAside — The right words, right when you need them",
+  title: "CueAside — The copilot you could use with the door open",
   description:
-    "An AI speaking copilot for interviews and meetings. Start with a clear opening, then follow a natural, structured answer grounded in your own context.",
+    "A macOS speaking copilot for interviews and meetings. It catches the question and hands you one answer you can say. Our servers never keep a word you say — the complete list of what they do keep is printed on the homepage.",
   applicationName: "CueAside",
   alternates: {
     canonical: "/",
@@ -27,9 +27,9 @@ export const metadata: Metadata = {
     apple: "/cueaside-icon.png",
   },
   openGraph: {
-    title: "CueAside — Speak clearly when it matters",
+    title: "CueAside — The copilot you could use with the door open",
     description:
-      "AI-powered, context-aware speaking guidance for interviews and meetings.",
+      "Presenter notes for live conversation, on macOS. Three kinds of record on our servers, none of them your words — printed on the homepage.",
     url: "https://cueaside.com",
     siteName: "CueAside",
     images: [
@@ -45,9 +45,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "CueAside — Speak clearly when it matters",
+    title: "CueAside — The copilot you could use with the door open",
     description:
-      "AI-powered, context-aware speaking guidance for interviews and meetings.",
+      "Presenter notes for live conversation, on macOS. Three kinds of record on our servers, none of them your words — printed on the homepage.",
     images: ["https://cueaside.com/og.png"],
   },
 };
@@ -58,7 +58,7 @@ const softwareApplicationJsonLd = {
   name: "CueAside",
   url: "https://cueaside.com/",
   description:
-    "An AI speaking copilot for interviews and meetings that provides context-aware, speaking-ready answers in real time.",
+    "A macOS speaking copilot for interviews and meetings that surfaces your own preparation as one structured, speakable answer in real time. It never joins the meeting, and its servers do not retain audio, transcripts, or answers.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "macOS",
 };

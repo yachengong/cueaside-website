@@ -5,21 +5,63 @@ import test from "node:test";
 const rendered = (name) =>
   readFile(new URL(`../.next/server/app/${name}`, import.meta.url), "utf8");
 
-test("renders the CueAside product page", async () => {
+const source = (name) =>
+  readFile(new URL(`../${name}`, import.meta.url), "utf8");
+
+test("renders the CueAside disclosure document", async () => {
   const [home, layout] = await Promise.all([
     rendered("index.html"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    source("app/layout.tsx"),
   ]);
 
-  assert.match(home, /CueAside — The right words, right when you need them/);
-  assert.match(home, /Know what to say\./);
+  assert.match(home, /The copilot you could use with the door open/);
+  assert.match(home, /Server Ledger/);
   assert.match(home, /START HERE/);
-  assert.match(home, /THINKING DEPTH/);
-  assert.match(home, /Frequently asked questions/);
+  assert.match(home, /What it won&#x27;t do|What it won.t do/);
+  assert.match(home, /Where we stand/);
+  assert.match(home, /store:false/);
   assert.match(home, /English, Chinese, Spanish/);
   assert.match(home, /"@type":\s*"SoftwareApplication"/);
-  assert.doesNotMatch(home, /codex-preview|react-loading-skeleton|Cue or Read/i);
   assert.match(layout, /https:\/\/cueaside\.com/);
+});
+
+test("the ledger prints only what the schema actually stores", async () => {
+  const [home, schema] = await Promise.all([
+    rendered("index.html"),
+    source("supabase/migrations/202607290001_cueaside_commercial.sql"),
+  ]);
+
+  // Rows claimed as kept must exist as real columns.
+  assert.match(schema, /email text/);
+  assert.match(schema, /subscription_status text/);
+  assert.match(schema, /answer_requests integer/);
+  assert.match(schema, /transcription_requests integer/);
+  assert.match(schema, /realtime_tokens integer/);
+
+  // Rows claimed as never kept must have no column able to hold them. A
+  // content column would be text/jsonb/bytea — counters like
+  // `transcription_requests integer` are counts, not contents.
+  assert.doesNotMatch(
+    schema,
+    /^\s*(transcript|audio|prompt|question|answer|content|message|context|resume|note)\w*\s+(text|jsonb|json|bytea)/im,
+  );
+
+  assert.match(home, /Your audio/);
+  assert.match(home, /Your transcripts/);
+  assert.match(home, /Your questions &amp; answers|Your questions & answers/);
+});
+
+test("the page makes no social-proof claims it cannot back", async () => {
+  const home = await rendered("index.html");
+
+  assert.match(home, /NO TESTIMONIALS/);
+  assert.doesNotMatch(home, /trusted by|as seen in|\d+[,\d]*\+? (users|customers)/i);
+  // Banned brand vocabulary: superlatives and stealth marketing.
+  assert.doesNotMatch(
+    home,
+    /guaranteed|supercharge|#1 |ace your|crush your|100% (accurate|undetectable)/i,
+  );
+  assert.doesNotMatch(home, /codex-preview|react-loading-skeleton/i);
 });
 
 test("exposes the commercial API routes", async () => {
@@ -42,18 +84,24 @@ test("exposes the commercial API routes", async () => {
   }
 });
 
-test("renders the early-access waitlist and trust pages", async () => {
-  const [home, privacy, terms] = await Promise.all([
+test("keeps the waitlist as the only conversion path", async () => {
+  const [home, form] = await Promise.all([
     rendered("index.html"),
+    source("app/early-access-form.tsx"),
+  ]);
+
+  assert.match(form, /\/api\/waitlist/);
+  assert.match(home, /you@company\.com/);
+  assert.match(home, /href="\/privacy\/"/);
+  assert.match(home, /href="\/terms\/"/);
+});
+
+test("renders the trust pages", async () => {
+  const [privacy, terms] = await Promise.all([
     rendered("privacy.html"),
     rendered("terms.html"),
   ]);
 
-  assert.match(home, /Private by design/);
-  assert.match(home, /Join early access/);
-  assert.match(home, /you@company\.com/);
-  assert.match(home, /href="\/privacy\/"/);
-  assert.match(home, /href="\/terms\/"/);
   assert.match(privacy, /Privacy Policy — CueAside/);
   assert.match(privacy, /storage disabled/);
   assert.match(privacy, /support@cueaside\.com/);
@@ -63,8 +111,8 @@ test("renders the early-access waitlist and trust pages", async () => {
 
 test("publishes search crawler discovery files", async () => {
   const [robots, sitemap] = await Promise.all([
-    readFile(new URL("../public/robots.txt", import.meta.url), "utf8"),
-    readFile(new URL("../public/sitemap.xml", import.meta.url), "utf8"),
+    source("public/robots.txt"),
+    source("public/sitemap.xml"),
   ]);
 
   assert.match(robots, /^User-agent: \*$/m);

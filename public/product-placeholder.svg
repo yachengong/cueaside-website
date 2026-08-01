@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 760" role="img" aria-label="Playful placeholder: a cat wearing headphones is taking the product screenshot">
   <defs>
     <radialGradient id="glow1" cx="30%" cy="20%" r="60%">
-      <stop offset="0%" stop-color="#2e3e8c" stop-opacity="0.35"/>
-      <stop offset="100%" stop-color="#2e3e8c" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#4c3fd6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#4c3fd6" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="glow2" cx="78%" cy="30%" r="55%">
-      <stop offset="0%" stop-color="#c4943e" stop-opacity="0.22"/>
-      <stop offset="100%" stop-color="#c4943e" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#8a7bf5" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#8a7bf5" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="goldline" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f4d795"/>
-      <stop offset="100%" stop-color="#c99a4e"/>
+      <stop offset="0%" stop-color="#b7abff"/>
+      <stop offset="100%" stop-color="#7a68f0"/>
     </linearGradient>
   </defs>
 
@@ -34,12 +34,12 @@
     <path d="M330 560 H660"/>
   </g>
   <!-- code lines on laptop screen -->
-  <g stroke="#6f9bff" stroke-width="5" stroke-linecap="round" opacity="0.75">
+  <g stroke="#7aa2ff" stroke-width="5" stroke-linecap="round" opacity="0.75">
     <line x1="385" y1="395" x2="500" y2="395"/>
     <line x1="385" y1="425" x2="560" y2="425"/>
     <line x1="385" y1="455" x2="470" y2="455"/>
   </g>
-  <g stroke="#f4d795" stroke-width="5" stroke-linecap="round" opacity="0.8">
+  <g stroke="#b7abff" stroke-width="5" stroke-linecap="round" opacity="0.8">
     <line x1="385" y1="485" x2="530" y2="485"/>
   </g>
 
@@ -55,12 +55,12 @@
     <path d="M745 275 L730 215 L785 250"/>
     <path d="M855 275 L870 215 L815 250"/>
     <!-- headphone band + cups -->
-    <path d="M722 320 C722 250 878 250 878 320" stroke="#6f9bff"/>
-    <rect x="706" y="308" width="26" height="44" rx="10" stroke="#6f9bff"/>
-    <rect x="868" y="308" width="26" height="44" rx="10" stroke="#6f9bff"/>
+    <path d="M722 320 C722 250 878 250 878 320" stroke="#7aa2ff"/>
+    <rect x="706" y="308" width="26" height="44" rx="10" stroke="#7aa2ff"/>
+    <rect x="868" y="308" width="26" height="44" rx="10" stroke="#7aa2ff"/>
   </g>
   <!-- face -->
-  <g stroke="#f4d795" stroke-width="3" fill="none" stroke-linecap="round">
+  <g stroke="#b7abff" stroke-width="3" fill="none" stroke-linecap="round">
     <path d="M772 330 C776 336 784 336 788 330"/>
     <path d="M812 330 C816 336 824 336 828 330"/>
     <path d="M792 356 C797 362 803 362 808 356"/>
@@ -74,7 +74,7 @@
   </g>
 
   <!-- waveform under desk -->
-  <g stroke="#6f9bff" stroke-width="3" stroke-linecap="round" opacity="0.65">
+  <g stroke="#7aa2ff" stroke-width="3" stroke-linecap="round" opacity="0.65">
     <line x1="250" y1="640" x2="250" y2="660"/>
     <line x1="275" y1="628" x2="275" y2="672"/>
     <line x1="300" y1="615" x2="300" y2="685"/>
@@ -90,8 +90,8 @@
     <rect x="1010" y="220" width="420" height="300" rx="16" fill="#10121a" stroke="url(#goldline)" stroke-width="2"/>
     <circle cx="1042" cy="254" r="5" fill="#3ec27a"/>
     <text x="1060" y="259" font-family="ui-monospace, Menlo, monospace" font-size="15" fill="#f2f3f6" letter-spacing="1">ANSWERING…</text>
-    <rect x="1038" y="288" width="364" height="74" rx="10" fill="none" stroke="#6f9bff" stroke-opacity="0.6" stroke-width="2"/>
-    <text x="1056" y="315" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#6f9bff" letter-spacing="2">START HERE</text>
+    <rect x="1038" y="288" width="364" height="74" rx="10" fill="none" stroke="#7aa2ff" stroke-opacity="0.6" stroke-width="2"/>
+    <text x="1056" y="315" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#7aa2ff" letter-spacing="2">START HERE</text>
     <g stroke="#ffffff" stroke-opacity="0.5" stroke-width="6" stroke-linecap="round">
       <line x1="1056" y1="338" x2="1330" y2="338"/>
     </g>
@@ -104,6 +104,6 @@
   </g>
 
   <!-- caption -->
-  <text x="800" y="700" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="17" fill="#e3bd72" letter-spacing="4">PRODUCT SHOT — RESERVED</text>
+  <text x="800" y="700" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="17" fill="#9687ff" letter-spacing="4">PRODUCT SHOT — RESERVED</text>
   <text x="800" y="730" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12.5" fill="#7e828f" letter-spacing="2">THE APP IS REAL · THE SCREENSHOT IS STILL BEING TAKEN BY THIS CAT</text>
 </svg>

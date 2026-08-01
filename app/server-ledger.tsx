@@ -114,6 +114,12 @@ export default function ServerLedger({ full = false }: { full?: boolean }) {
         .join(" ")}
       aria-label="Server ledger: what CueAside servers store"
     >
+      {full ? (
+        <div className="ledger-stamp" aria-hidden="true">
+          <span>0 words</span>
+          <span>stored</span>
+        </div>
+      ) : null}
       <p className="ledger-title">Server Ledger</p>
       <p className="ledger-sub">
         What the CueAside servers hold, per account

@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import EarlyAccessForm from "./early-access-form";
+import HeroStage from "./hero-stage";
 import OverlayDemo from "./overlay-demo";
 import ScrollFX from "./scroll-fx";
 import ServerLedger from "./server-ledger";
@@ -48,7 +49,9 @@ function Clause({
   return (
     <section className="clause" id={id}>
       <div className="clause-head">
-        <div className="clause-number">Clause {number}</div>
+        <div className="clause-number" data-n={number}>
+          Clause {number}
+        </div>
         <div>
           <h2 className="clause-title">{title}</h2>
           {lede}
@@ -63,11 +66,6 @@ export default function Home() {
   return (
     <main>
       <ScrollFX />
-      <div className="aurora" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </div>
 
       <header className="masthead">
         <div className="masthead-inner">
@@ -75,46 +73,58 @@ export default function Home() {
             <img src="/cueaside-icon.png" alt="" width={28} height={28} />
             CueAside
           </a>
-          <nav className="masthead-nav mono" aria-label="Document sections">
+          <nav className="masthead-nav" aria-label="Document sections">
             <a href="#ledger">Ledger</a>
             <a href="#stance">Stance</a>
             <a href="#limits">Limits</a>
             <a href="#price">Price</a>
             <a href="#faq">FAQ</a>
           </nav>
-          <div className="masthead-meta mono">
-            macOS · Early access · {DOC_VERSION}
-          </div>
+          <a className="masthead-cta" href="#early-access">
+            Join early access
+          </a>
         </div>
       </header>
 
       <section className="hero" id="top">
-        <div>
-          <div className="hero-eyebrow mono">
-            Interview &amp; meeting copilot for macOS · Built by one developer
-          </div>
-          <h1>The copilot you could use with the door open.</h1>
-          <p className="hero-sub">
-            CueAside listens on your Mac, catches the question, and shows one
-            answer you can actually say — the first sentence, then the points
-            underneath it. It never joins your meeting.{" "}
-            <strong>Our servers never keep a word you say.</strong> Everything
-            they do keep is printed on this page.
-          </p>
-          <EarlyAccessForm source="landing-hero" />
-          <a className="hero-secondary" href="#ledger">
-            Read the Server Ledger ↓
-          </a>
+        <div className="hero-eyebrow mono">
+          macOS · Early access · Built by one developer
         </div>
+        <h1>
+          {"The copilot you could use".split(" ").map((word, index) => (
+            <span
+              className="w"
+              key={index}
+              style={{ animationDelay: `${80 * index}ms` }}
+            >
+              {word}
+              {" "}
+            </span>
+          ))}
+          {"with the door open.".split(" ").map((word, index) => (
+            <span
+              className="w grad"
+              key={`g${index}`}
+              style={{ animationDelay: `${400 + 80 * index}ms` }}
+            >
+              {word}
+              {index < 3 ? " " : ""}
+            </span>
+          ))}
+        </h1>
+        <p className="hero-sub">
+          CueAside listens on your Mac, catches the question, and shows one
+          answer you can actually say — the first sentence, then the points
+          underneath it. It never joins your meeting.{" "}
+          <strong>Our servers never keep a word you say.</strong> Everything
+          they do keep is printed on this page.
+        </p>
+        <EarlyAccessForm source="landing-hero" />
+        <a className="hero-secondary" href="#ledger">
+          Read the Server Ledger ↓
+        </a>
 
-        <div>
-          <ServerLedger />
-          <p className="ledger-caption">
-            Where every other product in this category puts a glowing
-            screenshot, we put the retention list. Each row maps to a table in
-            the public schema.
-          </p>
-        </div>
+        <HeroStage />
       </section>
 
       <div className="compat-strip">
@@ -254,6 +264,11 @@ export default function Home() {
         }
       >
         <ServerLedger full />
+        <p className="ledger-caption">
+          Where every other product in this category puts a glowing screenshot,
+          we put the retention list. Each row maps to a table in the public
+          schema.
+        </p>
 
         <div className="ledger-notes">
           <div>
@@ -364,7 +379,8 @@ export default function Home() {
           way to deceive anyone.
         </p>
         <p>
-          <strong>On consent.</strong> Rules about recording and transcribing
+          <strong>On consent.</strong>{" "}
+          Rules about recording and transcribing
           conversations vary by region, and some require everyone&rsquo;s
           agreement. Know the rules that apply to you before using any tool that
           listens. A good test: if someone asked what was on your screen, you
@@ -462,10 +478,27 @@ export default function Home() {
             <div className="mono" style={{ color: "var(--ink-faint)" }}>
               Eleven answer languages
             </div>
-            <div className="lang-grid">
-              {LANGUAGES.map((language) => (
-                <span key={language}>{language}</span>
-              ))}
+            <div className="lang-marquee">
+              <div className="lang-track">
+                {[...LANGUAGES, ...LANGUAGES].map((language, index) => (
+                  <span
+                    className="lang-chip"
+                    key={index}
+                    aria-hidden={index >= LANGUAGES.length}
+                  >
+                    {language}
+                  </span>
+                ))}
+              </div>
+              <div className="lang-track reverse" aria-hidden="true">
+                {[...LANGUAGES, ...LANGUAGES]
+                  .reverse()
+                  .map((language, index) => (
+                    <span className="lang-chip" key={index}>
+                      {language}
+                    </span>
+                  ))}
+              </div>
             </div>
           </div>
         </div>

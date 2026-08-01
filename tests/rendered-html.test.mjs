@@ -64,6 +64,7 @@ test("keeps account and billing responses compatible with the macOS app", async 
   assert.match(billing, /answerRequests: 15/);
   assert.match(billing, /answerRequests: 200/);
   assert.match(account, /usageFor/);
+  assert.match(account, /entitlement\.bypass/);
 });
 
 test("uses monthly plan-aware usage instead of subscription-only access", async () => {
@@ -84,5 +85,7 @@ test("uses monthly plan-aware usage instead of subscription-only access", async 
   assert.match(billing, /current\.paid/);
   assert.match(storage, /consume_monthly_usage/);
   assert.match(migration, /primary key \(user_id, period_start\)/);
+  assert.match(openai, /if \(entitlement\.bypass\) return/);
+  assert.match(billing, /unlimited: boolean/);
   assert.doesNotMatch(openai, /recordUsage\(user\.id, kind\);/);
 });

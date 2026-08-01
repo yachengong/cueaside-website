@@ -262,6 +262,7 @@ export interface UsageCounter {
 
 export interface UsageSummary {
   periodStart: string;
+  unlimited: boolean;
   answerRequests: UsageCounter;
   transcriptionRequests: UsageCounter;
   realtimeTokens: UsageCounter;
@@ -278,8 +279,9 @@ function usageCounter(used: number, limit: number): UsageCounter {
 export async function usageFor(
   userId: string,
   plan: PlanId,
+  unlimited = false,
 ): Promise<UsageSummary> {
-  const row = await monthlyUsageFor(userId);
+  const row = unlimited ? null : await monthlyUsageFor(userId);
   const now = new Date();
   const periodStart =
     row?.period_start ??
@@ -290,6 +292,7 @@ export async function usageFor(
   const limits = PLAN_USAGE_LIMITS[plan];
   return {
     periodStart,
+    unlimited,
     answerRequests: usageCounter(row?.answer_requests ?? 0, limits.answerRequests),
     transcriptionRequests: usageCounter(
       row?.transcription_requests ?? 0,

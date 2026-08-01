@@ -6,7 +6,11 @@ export async function GET(request: Request) {
   try {
     const user = await requireUser(request);
     const entitlement = await entitlementFor(user.id);
-    const usage = await usageFor(user.id, entitlement.plan);
+    const usage = await usageFor(
+      user.id,
+      entitlement.plan,
+      entitlement.bypass,
+    );
     return Response.json(
       {
         user: {

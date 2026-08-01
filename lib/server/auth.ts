@@ -8,12 +8,17 @@ import { enforcePublicRateLimit } from "./rate-limit";
 export interface CueAsideUser {
   id: string;
   email: string | null;
+  name: string | null;
+  avatarUrl: string | null;
 }
 
 type OAuthProvider = "google" | "apple";
 
 export async function createOAuthURL(request: Request): Promise<Response> {
-  const body = await readJSON<{ provider?: string }>(request, 8_000);
+  const body = await readJSON<{ provider?: string; state?: string }>(
+    request,
+    8_000,
+  );
   const provider = body.provider?.trim().toLowerCase() as OAuthProvider;
   if (provider !== "google" && provider !== "apple") {
     throw new ServiceError(
@@ -35,6 +40,15 @@ export async function createOAuthURL(request: Request): Promise<Response> {
     );
   }
 
+  const state = body.state?.trim() ?? "";
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(state)) {
+    throw new ServiceError(
+      "CueAside could not start a secure sign-in session.",
+      400,
+      "invalid_oauth_state",
+    );
+  }
+
   await enforcePublicRateLimit({
     request,
     scope: "oauth-start",
@@ -48,7 +62,9 @@ export async function createOAuthURL(request: Request): Promise<Response> {
   ).replace(/\/+$/, "");
   const url = new URL(`${base}/auth/v1/authorize`);
   url.searchParams.set("provider", provider);
-  url.searchParams.set("redirect_to", "cueaside://auth/callback");
+  const callback = new URL("cueaside://auth/callback");
+  callback.searchParams.set("state", state);
+  url.searchParams.set("redirect_to", callback.toString());
 
   return Response.json(
     { url: url.toString() },
@@ -171,6 +187,13 @@ export async function verifyEmailCode(request: Request): Promise<Response> {
 }
 
 export async function refreshSession(request: Request): Promise<Response> {
+  await enforcePublicRateLimit({
+    request,
+    scope: "auth-refresh",
+    maximum: 60,
+    windowSeconds: 5 * 60,
+  });
+
   const body = await readJSON<{ refresh_token?: string }>(request, 16_000);
   const refreshToken = body.refresh_token?.trim() ?? "";
   if (!refreshToken) {
@@ -214,8 +237,23 @@ export async function requireUser(request: Request): Promise<CueAsideUser> {
     );
   }
 
+  const metadata =
+    result.user_metadata && typeof result.user_metadata === "object"
+      ? (result.user_metadata as Record<string, unknown>)
+      : {};
+  const name =
+    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
+    (typeof metadata.name === "string" && metadata.name.trim()) ||
+    null;
+  const avatarUrl =
+    (typeof metadata.avatar_url === "string" && metadata.avatar_url.trim()) ||
+    (typeof metadata.picture === "string" && metadata.picture.trim()) ||
+    null;
+
   return {
     id,
     email: typeof result.email === "string" ? result.email : null,
+    name,
+    avatarUrl,
   };
 }

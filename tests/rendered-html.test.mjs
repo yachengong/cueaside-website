@@ -34,3 +34,30 @@ test("publishes search crawler discovery files", async () => {
   assert.match(robots, /https:\/\/cueaside\.com\/sitemap\.xml/);
   assert.match(sitemap, /<loc>https:\/\/cueaside\.com\/<\/loc>/);
 });
+
+test("hardens public authentication entry points", async () => {
+  const [rateLimit, auth] = await Promise.all([
+    readFile(new URL("../lib/server/rate-limit.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/auth.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(rateLimit, /x-vercel-forwarded-for/);
+  assert.doesNotMatch(rateLimit, /headers\.get\("cf-connecting-ip"\)/);
+  assert.match(auth, /invalid_oauth_state/);
+  assert.match(auth, /callback\.searchParams\.set\("state", state\)/);
+  assert.match(auth, /scope: "auth-refresh"/);
+});
+
+test("keeps account and billing responses compatible with the macOS app", async () => {
+  const [account, auth, billing] = await Promise.all([
+    readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/billing.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(account, /name: user\.name/);
+  assert.match(account, /avatarUrl: user\.avatarUrl/);
+  assert.match(auth, /result\.user_metadata/);
+  assert.match(billing, /return_url: `\$\{publicSiteURL\(\)\}\/`/);
+  assert.doesNotMatch(billing, /return_url:.*\/account\//);
+});

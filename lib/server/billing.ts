@@ -184,7 +184,10 @@ export async function createPortal(user: CueAsideUser): Promise<string> {
     "/billing_portal/sessions",
     new URLSearchParams({
       customer: customerId,
-      return_url: `${publicSiteURL()}/account/`,
+      // Account management lives in the native macOS dashboard. The public
+      // website does not expose an /account route, so returning there left a
+      // successfully managed customer on a 404 page.
+      return_url: `${publicSiteURL()}/`,
     }),
   );
   const url = typeof session.url === "string" ? session.url : "";

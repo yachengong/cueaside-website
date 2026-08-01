@@ -11,7 +11,12 @@ export async function enforcePublicRateLimit(input: {
   maximum: number;
   windowSeconds: number;
 }): Promise<void> {
-  const forwarded = input.request.headers.get("cf-connecting-ip") ??
+  // This service runs on Vercel. `cf-connecting-ip` is only trustworthy when
+  // every request is guaranteed to have traversed Cloudflare; on a public
+  // Vercel deployment a caller can supply it directly and rotate the value to
+  // evade an IP limit. Prefer Vercel's platform-owned header instead.
+  const forwarded = input.request.headers.get("x-vercel-forwarded-for") ??
+    input.request.headers.get("x-real-ip") ??
     input.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     "unknown";
   const rawKey = `${input.scope}:${forwarded}:${input.subject ?? ""}`;

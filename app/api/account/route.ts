@@ -8,7 +8,12 @@ export async function GET(request: Request) {
     const entitlement = await entitlementFor(user.id);
     return Response.json(
       {
-        user: { id: user.id, email: user.email },
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+        },
         subscription: entitlement,
       },
       { headers: { "Cache-Control": "no-store" } },

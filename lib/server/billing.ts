@@ -8,8 +8,9 @@ import {
 import {
   applySubscriptionUpdate,
   billingAccountFor,
-  consumeDailyUsage,
+  consumeMonthlyUsage,
   insertStripeEvent,
+  monthlyUsageFor,
   stripeEventExists,
   upsertBillingAccount,
 } from "./supabase";
@@ -18,6 +19,8 @@ const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
 export interface Entitlement {
   active: boolean;
+  paid: boolean;
+  plan: "free" | "pro";
   status: string;
   currentPeriodEnd: number | null;
   cancelAtPeriodEnd: boolean;
@@ -36,6 +39,8 @@ export async function entitlementFor(userId: string): Promise<Entitlement> {
   if (isBypassed(userId)) {
     return {
       active: true,
+      paid: true,
+      plan: "pro",
       status: "owner",
       currentPeriodEnd: null,
       cancelAtPeriodEnd: false,
@@ -45,9 +50,15 @@ export async function entitlementFor(userId: string): Promise<Entitlement> {
 
   const account = await billingAccountFor(userId);
   const status = account?.subscription_status ?? "inactive";
+  const paid = ACTIVE_STATUSES.has(status);
   return {
-    active: ACTIVE_STATUSES.has(status),
-    status,
+    // A verified CueAside account always has Free access. `paid` and `plan`
+    // distinguish a Stripe subscription from the permanent free tier without
+    // breaking older macOS clients that only know whether access is active.
+    active: true,
+    paid,
+    plan: paid ? "pro" : "free",
+    status: paid ? status : "free",
     currentPeriodEnd: account?.current_period_end ?? null,
     cancelAtPeriodEnd: account?.cancel_at_period_end ?? false,
     bypass: false,
@@ -55,15 +66,7 @@ export async function entitlementFor(userId: string): Promise<Entitlement> {
 }
 
 export async function requireEntitlement(userId: string): Promise<Entitlement> {
-  const entitlement = await entitlementFor(userId);
-  if (!entitlement.active) {
-    throw new ServiceError(
-      "An active CueAside subscription is required.",
-      402,
-      "subscription_required",
-    );
-  }
-  return entitlement;
+  return entitlementFor(userId);
 }
 
 function stripeHeaders(): HeadersInit {
@@ -139,7 +142,7 @@ async function createStripeCustomer(user: CueAsideUser): Promise<string> {
 
 export async function createCheckout(user: CueAsideUser): Promise<string> {
   const current = await entitlementFor(user.id);
-  if (current.active) {
+  if (current.paid) {
     throw new ServiceError(
       "This account already has an active subscription.",
       409,
@@ -206,10 +209,19 @@ export type UsageKind =
   | "transcriptionRequests"
   | "realtimeTokens";
 
-const USAGE_LIMITS: Record<UsageKind, number> = {
-  answerRequests: 500,
-  transcriptionRequests: 500,
-  realtimeTokens: 1_000,
+export type PlanId = "free" | "pro";
+
+const PLAN_USAGE_LIMITS: Record<PlanId, Record<UsageKind, number>> = {
+  free: {
+    answerRequests: 15,
+    transcriptionRequests: 60,
+    realtimeTokens: 15,
+  },
+  pro: {
+    answerRequests: 200,
+    transcriptionRequests: 1_000,
+    realtimeTokens: 300,
+  },
 };
 
 const USAGE_COLUMNS: Record<
@@ -224,19 +236,67 @@ const USAGE_COLUMNS: Record<
 export async function recordUsage(
   userId: string,
   kind: UsageKind,
+  plan: PlanId,
 ): Promise<void> {
-  const allowed = await consumeDailyUsage({
+  const allowed = await consumeMonthlyUsage({
     userId,
     kind: USAGE_COLUMNS[kind],
-    limit: USAGE_LIMITS[kind],
+    limit: PLAN_USAGE_LIMITS[plan][kind],
   });
   if (!allowed) {
     throw new ServiceError(
-      "Today’s fair-use limit has been reached. Contact support if you need more.",
+      plan === "free"
+        ? "Your Free monthly limit has been reached. Upgrade to CueAside Pro to continue."
+        : "Your Pro monthly fair-use limit has been reached. Contact support if you need more.",
       429,
-      "daily_limit_reached",
+      "monthly_limit_reached",
     );
   }
+}
+
+export interface UsageCounter {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export interface UsageSummary {
+  periodStart: string;
+  answerRequests: UsageCounter;
+  transcriptionRequests: UsageCounter;
+  realtimeTokens: UsageCounter;
+}
+
+function usageCounter(used: number, limit: number): UsageCounter {
+  return {
+    used,
+    limit,
+    remaining: Math.max(limit - used, 0),
+  };
+}
+
+export async function usageFor(
+  userId: string,
+  plan: PlanId,
+): Promise<UsageSummary> {
+  const row = await monthlyUsageFor(userId);
+  const now = new Date();
+  const periodStart =
+    row?.period_start ??
+    `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(
+      2,
+      "0",
+    )}-01`;
+  const limits = PLAN_USAGE_LIMITS[plan];
+  return {
+    periodStart,
+    answerRequests: usageCounter(row?.answer_requests ?? 0, limits.answerRequests),
+    transcriptionRequests: usageCounter(
+      row?.transcription_requests ?? 0,
+      limits.transcriptionRequests,
+    ),
+    realtimeTokens: usageCounter(row?.realtime_tokens ?? 0, limits.realtimeTokens),
+  };
 }
 
 export async function hasProcessedStripeEvent(

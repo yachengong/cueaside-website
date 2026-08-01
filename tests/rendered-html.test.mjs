@@ -60,4 +60,29 @@ test("keeps account and billing responses compatible with the macOS app", async 
   assert.match(auth, /result\.user_metadata/);
   assert.match(billing, /return_url: `\$\{publicSiteURL\(\)\}\/`/);
   assert.doesNotMatch(billing, /return_url:.*\/account\//);
+  assert.match(billing, /plan: paid \? "pro" : "free"/);
+  assert.match(billing, /answerRequests: 15/);
+  assert.match(billing, /answerRequests: 200/);
+  assert.match(account, /usageFor/);
+});
+
+test("uses monthly plan-aware usage instead of subscription-only access", async () => {
+  const [billing, storage, migration, openai] = await Promise.all([
+    readFile(new URL("../lib/server/billing.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/supabase.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL(
+        "../supabase/migrations/202608010001_free_pro_plans.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(new URL("../lib/server/openai.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(billing, /active: true/);
+  assert.match(billing, /current\.paid/);
+  assert.match(storage, /consume_monthly_usage/);
+  assert.match(migration, /primary key \(user_id, period_start\)/);
+  assert.doesNotMatch(openai, /recordUsage\(user\.id, kind\);/);
 });

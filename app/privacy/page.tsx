@@ -16,13 +16,15 @@ export default function PrivacyPolicy() {
   return (
     <main className="legal-page">
       <header className="masthead">
-        <Link className="masthead-brand" href="/" aria-label="CueAside home">
-          <img src="/cueaside-icon.png" alt="" width={28} height={28} />
-          CueAside
-        </Link>
-        <Link className="mono" href="/">
-          ← Back to the document
-        </Link>
+        <div className="masthead-inner">
+          <Link className="masthead-brand" href="/" aria-label="CueAside home">
+            <img src="/cueaside-icon.png" alt="" width={28} height={28} />
+            CueAside
+          </Link>
+          <Link className="mono" href="/">
+            ← Back to the document
+          </Link>
+        </div>
       </header>
 
       <article className="legal-body">

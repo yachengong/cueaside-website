@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 760" role="img" aria-label="Playful placeholder: a cat wearing headphones is taking the product screenshot">
+  <defs>
+    <radialGradient id="glow1" cx="30%" cy="20%" r="60%">
+      <stop offset="0%" stop-color="#2e3e8c" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#2e3e8c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="78%" cy="30%" r="55%">
+      <stop offset="0%" stop-color="#c4943e" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#c4943e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="goldline" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f4d795"/>
+      <stop offset="100%" stop-color="#c99a4e"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="760" fill="#0a0c12"/>
+  <rect width="1600" height="760" fill="url(#glow1)"/>
+  <rect width="1600" height="760" fill="url(#glow2)"/>
+
+  <!-- faint grid -->
+  <g stroke="#ffffff" stroke-opacity="0.035">
+    <path d="M0 190 H1600 M0 380 H1600 M0 570 H1600"/>
+    <path d="M320 0 V760 M640 0 V760 M960 0 V760 M1280 0 V760"/>
+  </g>
+
+  <!-- desk -->
+  <line x1="180" y1="560" x2="900" y2="560" stroke="url(#goldline)" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+
+  <!-- laptop -->
+  <g stroke="url(#goldline)" stroke-width="3" fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="360" y="360" width="270" height="170" rx="10"/>
+    <path d="M330 560 L360 530 H630 L660 560 Z"/>
+    <path d="M330 560 H660"/>
+  </g>
+  <!-- code lines on laptop screen -->
+  <g stroke="#6f9bff" stroke-width="5" stroke-linecap="round" opacity="0.75">
+    <line x1="385" y1="395" x2="500" y2="395"/>
+    <line x1="385" y1="425" x2="560" y2="425"/>
+    <line x1="385" y1="455" x2="470" y2="455"/>
+  </g>
+  <g stroke="#f4d795" stroke-width="5" stroke-linecap="round" opacity="0.8">
+    <line x1="385" y1="485" x2="530" y2="485"/>
+  </g>
+
+  <!-- cat -->
+  <g stroke="url(#goldline)" stroke-width="3" fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <!-- body -->
+    <path d="M690 560 C685 470 745 420 800 420 C855 420 915 470 910 560"/>
+    <!-- tail -->
+    <path d="M910 545 C980 540 990 470 950 450"/>
+    <!-- head -->
+    <circle cx="800" cy="330" r="78"/>
+    <!-- ears -->
+    <path d="M745 275 L730 215 L785 250"/>
+    <path d="M855 275 L870 215 L815 250"/>
+    <!-- headphone band + cups -->
+    <path d="M722 320 C722 250 878 250 878 320" stroke="#6f9bff"/>
+    <rect x="706" y="308" width="26" height="44" rx="10" stroke="#6f9bff"/>
+    <rect x="868" y="308" width="26" height="44" rx="10" stroke="#6f9bff"/>
+  </g>
+  <!-- face -->
+  <g stroke="#f4d795" stroke-width="3" fill="none" stroke-linecap="round">
+    <path d="M772 330 C776 336 784 336 788 330"/>
+    <path d="M812 330 C816 336 824 336 828 330"/>
+    <path d="M792 356 C797 362 803 362 808 356"/>
+  </g>
+  <!-- whiskers -->
+  <g stroke="#ffffff" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round">
+    <line x1="700" y1="345" x2="748" y2="350"/>
+    <line x1="702" y1="368" x2="748" y2="364"/>
+    <line x1="900" y1="345" x2="852" y2="350"/>
+    <line x1="898" y1="368" x2="852" y2="364"/>
+  </g>
+
+  <!-- waveform under desk -->
+  <g stroke="#6f9bff" stroke-width="3" stroke-linecap="round" opacity="0.65">
+    <line x1="250" y1="640" x2="250" y2="660"/>
+    <line x1="275" y1="628" x2="275" y2="672"/>
+    <line x1="300" y1="615" x2="300" y2="685"/>
+    <line x1="325" y1="632" x2="325" y2="668"/>
+    <line x1="350" y1="642" x2="350" y2="658"/>
+    <line x1="375" y1="622" x2="375" y2="678"/>
+    <line x1="400" y1="636" x2="400" y2="664"/>
+    <line x1="425" y1="645" x2="425" y2="655"/>
+  </g>
+
+  <!-- floating answer card -->
+  <g>
+    <rect x="1010" y="220" width="420" height="300" rx="16" fill="#10121a" stroke="url(#goldline)" stroke-width="2"/>
+    <circle cx="1042" cy="254" r="5" fill="#3ec27a"/>
+    <text x="1060" y="259" font-family="ui-monospace, Menlo, monospace" font-size="15" fill="#f2f3f6" letter-spacing="1">ANSWERING…</text>
+    <rect x="1038" y="288" width="364" height="74" rx="10" fill="none" stroke="#6f9bff" stroke-opacity="0.6" stroke-width="2"/>
+    <text x="1056" y="315" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#6f9bff" letter-spacing="2">START HERE</text>
+    <g stroke="#ffffff" stroke-opacity="0.5" stroke-width="6" stroke-linecap="round">
+      <line x1="1056" y1="338" x2="1330" y2="338"/>
+    </g>
+    <g stroke="#ffffff" stroke-opacity="0.22" stroke-width="6" stroke-linecap="round">
+      <line x1="1038" y1="396" x2="1300" y2="396"/>
+      <line x1="1038" y1="424" x2="1360" y2="424"/>
+      <line x1="1038" y1="452" x2="1250" y2="452"/>
+    </g>
+    <text x="1038" y="497" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#7e828f" letter-spacing="1">⌘↑ / ⌘↓ TO SCROLL</text>
+  </g>
+
+  <!-- caption -->
+  <text x="800" y="700" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="17" fill="#e3bd72" letter-spacing="4">PRODUCT SHOT — RESERVED</text>
+  <text x="800" y="730" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12.5" fill="#7e828f" letter-spacing="2">THE APP IS REAL · THE SCREENSHOT IS STILL BEING TAKEN BY THIS CAT</text>
+</svg>

@@ -2,6 +2,7 @@
 
 import EarlyAccessForm from "./early-access-form";
 import OverlayDemo from "./overlay-demo";
+import ScrollFX from "./scroll-fx";
 import ServerLedger from "./server-ledger";
 
 /*
@@ -61,20 +62,29 @@ function Clause({
 export default function Home() {
   return (
     <main>
+      <ScrollFX />
+      <div className="aurora" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
+
       <header className="masthead">
-        <a className="masthead-brand" href="#top">
-          <img src="/cueaside-icon.png" alt="" width={28} height={28} />
-          CueAside
-        </a>
-        <nav className="masthead-nav mono" aria-label="Document sections">
-          <a href="#ledger">Ledger</a>
-          <a href="#stance">Stance</a>
-          <a href="#limits">Limits</a>
-          <a href="#price">Price</a>
-          <a href="#faq">FAQ</a>
-        </nav>
-        <div className="masthead-meta mono">
-          macOS · Early access · {DOC_VERSION}
+        <div className="masthead-inner">
+          <a className="masthead-brand" href="#top">
+            <img src="/cueaside-icon.png" alt="" width={28} height={28} />
+            CueAside
+          </a>
+          <nav className="masthead-nav mono" aria-label="Document sections">
+            <a href="#ledger">Ledger</a>
+            <a href="#stance">Stance</a>
+            <a href="#limits">Limits</a>
+            <a href="#price">Price</a>
+            <a href="#faq">FAQ</a>
+          </nav>
+          <div className="masthead-meta mono">
+            macOS · Early access · {DOC_VERSION}
+          </div>
         </div>
       </header>
 
@@ -112,6 +122,30 @@ export default function Home() {
         because it only listens to the Mac audio input you choose. Nothing to
         install inside the call. No bot in the participant list.
       </div>
+
+      <section className="product-frame-section" aria-label="Product screenshot placeholder">
+        <div className="product-frame">
+          <div className="product-frame-inner">
+            <div className="product-frame-bar">
+              <i />
+              <i />
+              <i />
+              <span>CueAside.app — overlay</span>
+            </div>
+            <img
+              src="/product-placeholder.svg"
+              alt="Placeholder illustration: a cat wearing headphones is still taking the product screenshot"
+              width={1600}
+              height={760}
+            />
+          </div>
+        </div>
+        <p className="product-frame-caption">
+          This slot is reserved for a real, unretouched screenshot. Until it
+          exists, you get a cat — because a drawing labeled as a drawing beats
+          a mockup passed off as the product.
+        </p>
+      </section>
 
       <Clause
         id="answer"

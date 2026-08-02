@@ -76,10 +76,50 @@ export default function ScrollFX() {
       }
     }
 
+    // Scrollspy: light up the masthead link of the clause in view.
+    let spy: (() => void) | null = null;
+    if (typeof IntersectionObserver !== "undefined") {
+      const links = Array.from(
+        document.querySelectorAll<HTMLAnchorElement>(
+          '.masthead-nav a[href^="#"]',
+        ),
+      );
+      const sections = links
+        .map((link) => document.getElementById(link.hash.slice(1)))
+        .filter((node): node is HTMLElement => node !== null);
+
+      if (links.length > 0 && sections.length > 0) {
+        const activate = (id: string | null) => {
+          for (const link of links) {
+            link.classList.toggle("is-active", link.hash === `#${id}`);
+          }
+        };
+        const observer = new IntersectionObserver(
+          (entries) => {
+            const visible = entries
+              .filter((entry) => entry.isIntersecting)
+              .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+            if (visible.length > 0) {
+              activate(visible[0].target.id);
+            }
+          },
+          { rootMargin: "-25% 0px -55% 0px" },
+        );
+        for (const section of sections) {
+          observer.observe(section);
+        }
+        spy = () => {
+          observer.disconnect();
+          activate(null);
+        };
+      }
+    }
+
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", onScroll);
       reveal?.();
+      spy?.();
     };
   }, []);
 

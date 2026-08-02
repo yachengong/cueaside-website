@@ -1,10 +1,12 @@
 /* eslint-disable @next/next/no-img-element */
 
+import CaptureTest from "./capture-test";
 import EarlyAccessForm from "./early-access-form";
 import HeroStage from "./hero-stage";
 import OverlayDemo from "./overlay-demo";
 import ScrollFX from "./scroll-fx";
 import ServerLedger from "./server-ledger";
+import ShortcutBoard from "./shortcut-board";
 
 /*
  * The page is a disclosure document. Two rules for anyone editing it:
@@ -133,29 +135,7 @@ export default function Home() {
         install inside the call. No bot in the participant list.
       </div>
 
-      <section className="product-frame-section" aria-label="Product screenshot placeholder">
-        <div className="product-frame">
-          <div className="product-frame-inner">
-            <div className="product-frame-bar">
-              <i />
-              <i />
-              <i />
-              <span>CueAside.app — overlay</span>
-            </div>
-            <img
-              src="/product-placeholder.svg"
-              alt="Placeholder illustration: a cat wearing headphones is still taking the product screenshot"
-              width={1600}
-              height={760}
-            />
-          </div>
-        </div>
-        <p className="product-frame-caption">
-          This slot is reserved for a real, unretouched screenshot. Until it
-          exists, you get a cat — because a drawing labeled as a drawing beats
-          a mockup passed off as the product.
-        </p>
-      </section>
+      <CaptureTest />
 
       <Clause
         id="answer"
@@ -182,6 +162,8 @@ export default function Home() {
           label the difference. Thinking depth is a real control in the app;
           switch it above to see what changes.
         </p>
+
+        <ShortcutBoard />
       </Clause>
 
       <Clause

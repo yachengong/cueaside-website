@@ -122,3 +122,58 @@ test("publishes search crawler discovery files", async () => {
   assert.match(sitemap, /<loc>https:\/\/cueaside\.com\/privacy\/<\/loc>/);
   assert.match(sitemap, /<loc>https:\/\/cueaside\.com\/terms\/<\/loc>/);
 });
+
+test("hardens public authentication entry points", async () => {
+  const [rateLimit, auth] = await Promise.all([
+    readFile(new URL("../lib/server/rate-limit.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/auth.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(rateLimit, /x-vercel-forwarded-for/);
+  assert.doesNotMatch(rateLimit, /headers\.get\("cf-connecting-ip"\)/);
+  assert.match(auth, /invalid_oauth_state/);
+  assert.match(auth, /callback\.searchParams\.set\("state", state\)/);
+  assert.match(auth, /scope: "auth-refresh"/);
+});
+
+test("keeps account and billing responses compatible with the macOS app", async () => {
+  const [account, auth, billing] = await Promise.all([
+    readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/billing.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(account, /name: user\.name/);
+  assert.match(account, /avatarUrl: user\.avatarUrl/);
+  assert.match(auth, /result\.user_metadata/);
+  assert.match(billing, /return_url: `\$\{publicSiteURL\(\)\}\/`/);
+  assert.doesNotMatch(billing, /return_url:.*\/account\//);
+  assert.match(billing, /plan: paid \? "pro" : "free"/);
+  assert.match(billing, /answerRequests: 15/);
+  assert.match(billing, /answerRequests: 200/);
+  assert.match(account, /usageFor/);
+  assert.match(account, /entitlement\.bypass/);
+});
+
+test("uses monthly plan-aware usage instead of subscription-only access", async () => {
+  const [billing, storage, migration, openai] = await Promise.all([
+    readFile(new URL("../lib/server/billing.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/supabase.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL(
+        "../supabase/migrations/202608010001_free_pro_plans.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(new URL("../lib/server/openai.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(billing, /active: true/);
+  assert.match(billing, /current\.paid/);
+  assert.match(storage, /consume_monthly_usage/);
+  assert.match(migration, /primary key \(user_id, period_start\)/);
+  assert.match(openai, /if \(entitlement\.bypass\) return/);
+  assert.match(billing, /unlimited: boolean/);
+  assert.doesNotMatch(openai, /recordUsage\(user\.id, kind\);/);
+});

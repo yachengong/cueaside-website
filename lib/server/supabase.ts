@@ -13,6 +13,15 @@ export interface BillingAccountRow {
   updated_at: number;
 }
 
+export interface MonthlyUsageRow {
+  user_id: string;
+  period_start: string;
+  answer_requests: number;
+  transcription_requests: number;
+  realtime_tokens: number;
+  updated_at: number;
+}
+
 function adminURL(path: string): string {
   return `${requireRuntimeValue(
     "SUPABASE_URL",
@@ -98,12 +107,12 @@ export async function insertStripeEvent(input: {
   });
 }
 
-export async function consumeDailyUsage(input: {
+export async function consumeMonthlyUsage(input: {
   userId: string;
   kind: "answer_requests" | "transcription_requests" | "realtime_tokens";
   limit: number;
 }): Promise<boolean> {
-  return adminRequest<boolean>("rpc/consume_daily_usage", {
+  return adminRequest<boolean>("rpc/consume_monthly_usage", {
     method: "POST",
     body: JSON.stringify({
       p_user_id: input.userId,
@@ -128,6 +137,21 @@ export async function insertWaitlistSignup(input: {
       created_at: Math.floor(Date.now() / 1_000),
     }),
   });
+}
+
+export async function monthlyUsageFor(
+  userId: string,
+): Promise<MonthlyUsageRow | null> {
+  const now = new Date();
+  const periodStart = `${now.getUTCFullYear()}-${String(
+    now.getUTCMonth() + 1,
+  ).padStart(2, "0")}-01`;
+  const rows = await adminRequest<MonthlyUsageRow[]>(
+    `usage_monthly?user_id=eq.${encodeURIComponent(
+      userId,
+    )}&period_start=eq.${periodStart}&select=*&limit=1`,
+  );
+  return rows[0] ?? null;
 }
 
 export async function consumeRateLimit(input: {

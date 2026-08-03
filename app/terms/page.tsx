@@ -137,6 +137,28 @@ export default function TermsOfService() {
         </section>
 
         <section>
+          <h2>Cancellation and refunds</h2>
+          <p>
+            Subscriptions renew monthly until canceled. Cancel any time from
+            the Stripe billing portal inside the app — no email, no phone
+            call. Cancellation takes effect at the end of the paid period, and
+            you keep access until then. If a charge was a mistake — a double
+            charge, a renewal right after you canceled — write to{" "}
+            <a href="mailto:support@cueaside.com">support@cueaside.com</a> and
+            we will put it right.
+          </p>
+        </section>
+
+        <section>
+          <h2>System requirements</h2>
+          <p>
+            CueAside is a native macOS app and requires macOS 15.3 or later.
+            It does not run on Windows, and there is no web version of the
+            overlay.
+          </p>
+        </section>
+
+        <section>
           <h2>Ending service</h2>
           <p>
             You can stop using CueAside and delete your account at any time. We

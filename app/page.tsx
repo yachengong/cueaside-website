@@ -654,8 +654,8 @@ export default function Home() {
         title="Signature."
         lede={
           <p className="clause-lede">
-            Six questions that decide whether this is for you, answered without
-            the marketing voice.
+            Seven questions that decide whether this is for you, answered
+            without the marketing voice.
           </p>
         }
       >
@@ -704,6 +704,15 @@ export default function Home() {
               English, Chinese, Spanish, French, German, Japanese, Korean,
               Portuguese, Italian, Hindi and Arabic — each with its own speaking
               style, with standard technical terms kept precise.
+            </p>
+          </details>
+          <details>
+            <summary>What does it need to run?</summary>
+            <p>
+              A Mac on macOS 15.3 or later. It is a native app — no Windows
+              version, no web version of the overlay. Microphone access is
+              required to hear the conversation; Accessibility permission
+              powers the global shortcuts.
             </p>
           </details>
           <details>

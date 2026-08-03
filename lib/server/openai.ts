@@ -8,10 +8,26 @@ import {
 } from "./runtime";
 
 const DEPTHS = {
-  instinct: { model: "gpt-5.6-terra", effort: "none" },
-  balanced: { model: "gpt-5.6-terra", effort: "low" },
-  precise: { model: "gpt-5.6-sol", effort: "medium" },
-  thinking: { model: "gpt-5.6-sol", effort: "high" },
+  instinct: {
+    model: "gpt-5.6-luna",
+    effort: "none",
+    serviceTier: null,
+  },
+  balanced: {
+    model: "gpt-5.6-terra",
+    effort: "none",
+    serviceTier: null,
+  },
+  precise: {
+    model: "gpt-5.6-sol",
+    effort: "none",
+    serviceTier: "fast",
+  },
+  thinking: {
+    model: "gpt-5.6-sol",
+    effort: "medium",
+    serviceTier: "fast",
+  },
 } as const;
 
 async function openAIHeaders(userId: string): Promise<HeadersInit> {
@@ -38,18 +54,32 @@ type ResponseProxyBody = {
   stream?: unknown;
   model?: unknown;
   reasoning?: { effort?: unknown };
+  cueaside_depth?: unknown;
 };
 
 function inferDepth(body: ResponseProxyBody): keyof typeof DEPTHS {
+  if (
+    typeof body.cueaside_depth === "string" &&
+    Object.prototype.hasOwnProperty.call(DEPTHS, body.cueaside_depth)
+  ) {
+    return body.cueaside_depth as keyof typeof DEPTHS;
+  }
+
   const requestedModel = typeof body.model === "string" ? body.model : "";
   const effort =
     typeof body.reasoning?.effort === "string"
       ? body.reasoning.effort.toLowerCase()
       : "none";
-  if (requestedModel === "gpt-5.6-sol" && effort === "high") return "thinking";
+  if (requestedModel === "gpt-5.6-luna") return "instinct";
+  if (requestedModel === "gpt-5.6-terra") return "balanced";
+  if (
+    requestedModel === "gpt-5.6-sol" &&
+    ["medium", "high", "xhigh", "max"].includes(effort)
+  ) {
+    return "thinking";
+  }
   if (requestedModel === "gpt-5.6-sol") return "precise";
-  if (effort !== "none") return "balanced";
-  return "instinct";
+  return "balanced";
 }
 
 function validateText(value: unknown, field: string, maxLength: number): string {
@@ -105,6 +135,9 @@ export async function proxyAnswer(
       stream: true,
       max_output_tokens: maxOutputTokens,
       reasoning: { effort: profile.effort },
+      ...(profile.serviceTier
+        ? { service_tier: profile.serviceTier }
+        : {}),
     }),
   });
 

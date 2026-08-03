@@ -177,3 +177,17 @@ test("uses monthly plan-aware usage instead of subscription-only access", async 
   assert.match(billing, /unlimited: boolean/);
   assert.doesNotMatch(openai, /recordUsage\(user\.id, kind\);/);
 });
+
+test("keeps thinking-depth model routing explicit and enables Sol Fast", async () => {
+  const openai = await readFile(
+    new URL("../lib/server/openai.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(openai, /instinct:[\s\S]*gpt-5\.6-luna[\s\S]*effort: "none"/);
+  assert.match(openai, /balanced:[\s\S]*gpt-5\.6-terra[\s\S]*effort: "none"/);
+  assert.match(openai, /precise:[\s\S]*gpt-5\.6-sol[\s\S]*serviceTier: "fast"/);
+  assert.match(openai, /thinking:[\s\S]*effort: "medium"[\s\S]*serviceTier: "fast"/);
+  assert.match(openai, /cueaside_depth/);
+  assert.match(openai, /service_tier: profile\.serviceTier/);
+});

@@ -110,6 +110,33 @@ async function accountFor(userId: string) {
   return billingAccountFor(userId);
 }
 
+/**
+ * Cancel a subscription immediately (account deletion, not ordinary
+ * cancellation — that goes through the Stripe portal and runs to period
+ * end). A subscription Stripe no longer knows about counts as canceled.
+ */
+export async function cancelStripeSubscriptionImmediately(
+  subscriptionId: string,
+): Promise<void> {
+  const response = await fetch(
+    `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    {
+      method: "DELETE",
+      headers: stripeHeaders(),
+    },
+  );
+  if (!response.ok && response.status !== 404) {
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    throw new ServiceError(
+      payload.error?.message ?? "Billing is temporarily unavailable.",
+      502,
+      "billing_error",
+    );
+  }
+}
+
 async function createStripeCustomer(user: CueAsideUser): Promise<string> {
   const existing = await accountFor(user.id);
   if (existing?.stripe_customer_id) return existing.stripe_customer_id;

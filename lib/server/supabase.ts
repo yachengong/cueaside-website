@@ -154,6 +154,50 @@ export async function monthlyUsageFor(
   return rows[0] ?? null;
 }
 
+/**
+ * Remove every row we hold for a user. rate_limits is keyed by HMAC hashes
+ * that cannot be mapped back to a user id; those entries expire on their
+ * own and contain no contact or content data.
+ */
+export async function deleteUserData(userId: string): Promise<void> {
+  const id = encodeURIComponent(userId);
+  for (const path of [
+    `usage_monthly?user_id=eq.${id}`,
+    `usage_daily?user_id=eq.${id}`,
+    `billing_accounts?user_id=eq.${id}`,
+  ]) {
+    await adminRequest(path, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    });
+  }
+}
+
+export async function deleteAuthUser(userId: string): Promise<void> {
+  const base = requireRuntimeValue(
+    "SUPABASE_URL",
+    "Account storage is not configured yet.",
+  ).replace(/\/+$/, "");
+  const response = await fetch(
+    `${base}/auth/v1/admin/users/${encodeURIComponent(userId)}`,
+    {
+      method: "DELETE",
+      headers: adminHeaders(),
+      cache: "no-store",
+    },
+  );
+  // 404 means the auth user is already gone — deletion must be idempotent.
+  if (!response.ok && response.status !== 404) {
+    const text = await response.text();
+    console.error("Supabase auth delete error", response.status, text.slice(0, 400));
+    throw new ServiceError(
+      "Account deletion is temporarily unavailable.",
+      503,
+      "storage_unavailable",
+    );
+  }
+}
+
 export async function consumeRateLimit(input: {
   key: string;
   maximum: number;

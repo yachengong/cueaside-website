@@ -149,6 +149,16 @@ test("keeps account and billing responses compatible with the macOS app", async 
   assert.match(billing, /return_url: `\$\{publicSiteURL\(\)\}\/`/);
   assert.doesNotMatch(billing, /return_url:.*\/account\//);
   assert.match(billing, /plan: paid \? "pro" : "free"/);
+
+  // Self-serve deletion must exist and run in the safe order:
+  // cancel billing, then our rows, then the auth identity.
+  assert.match(account, /export async function DELETE/);
+  const deleteBody = account.slice(account.indexOf("export async function DELETE"));
+  const cancelAt = deleteBody.indexOf("cancelStripeSubscriptionImmediately");
+  const dataAt = deleteBody.indexOf("deleteUserData");
+  const authAt = deleteBody.indexOf("deleteAuthUser");
+  assert.ok(cancelAt !== -1 && dataAt !== -1 && authAt !== -1);
+  assert.ok(cancelAt < dataAt && dataAt < authAt, "deletion order is cancel -> data -> auth");
   assert.match(billing, /answerRequests: 15/);
   assert.match(billing, /answerRequests: 200/);
   assert.match(account, /usageFor/);

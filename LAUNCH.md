@@ -52,10 +52,32 @@ Tell Claude when this is done — the archive → sign → notarize → staple �
 DMG pipeline and the Sparkle auto-update integration are queued behind
 this one credential and can be built and run for you the same day.
 
+## 3b. Shipping the beta WITHOUT the Developer Program
+
+You can run the private beta today. Build it:
+
+```bash
+cd ~/Desktop/SideCue && ./Tools/build_beta_dmg.sh
+```
+
+That produces `build/SideCue-beta-<version>-<stamp>.dmg`, a `.txt` receipt
+with its SHA-256, and preserved dSYMs in `build/dsyms/` (keep these — they
+are the only way to read a crash report from that build).
+
+The DMG is ad-hoc signed with hardened runtime but **not notarized**, so
+macOS blocks the first launch. Testers follow
+[cueaside.com/install](https://cueaside.com/install/) — right-click → Open,
+then the two permissions. Send that link with the DMG in the invite email.
+
+When the Developer ID certificate exists, this script gets replaced by a
+notarized pipeline and the /install page goes away.
+
 ## 4. Third-party monitoring accounts
 
-- Sentry: create org + two projects (macOS, Next.js); DSNs go to Claude
-  to wire in.
+- Sentry: create org + two projects (macOS, Next.js). The website side is
+  already wired — paste the DSN into Vercel as `SENTRY_DSN` and
+  `NEXT_PUBLIC_SENTRY_DSN` and it starts reporting. The macOS project's
+  DSN goes to Claude.
 - Better Stack (or UptimeRobot): monitors for `https://cueaside.com` and
   `https://cueaside.com/api/health`.
 - OpenAI: put CueAside in its own Project; set spend alerts at 50/75/90%
@@ -82,3 +104,8 @@ this one credential and can be built and run for you the same day.
 - CI (lint + build + tests) on every push/PR.
 - Terms: cancellation/refund + system requirements; FAQ: requirements.
 - App repo: working tree committed and pushed (builds clean).
+- `DELETE /api/account`: self-serve deletion — cancels the Stripe
+  subscription, drops billing/usage rows, deletes the auth identity.
+- Sentry wired for server, edge and browser; inert until a DSN is set.
+- Vercel Web Analytics component in the layout (activate via the toggle).
+- Beta DMG pipeline + `/install` guide (see 3b) — verified end to end.

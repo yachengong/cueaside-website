@@ -201,3 +201,16 @@ test("keeps thinking-depth model routing explicit and enables Sol Fast", async (
   assert.match(openai, /cueaside_depth/);
   assert.match(openai, /service_tier: profile\.serviceTier/);
 });
+
+test("the beta install guide is honest about the unsigned build", async () => {
+  const install = await rendered("install.html");
+
+  assert.match(install, /not notarized by Apple/);
+  assert.match(install, /right-click|Right-click/);
+  assert.match(install, /macOS 15\.3 or later/);
+  // Permissions must be named with their reason, not just requested.
+  assert.match(install, /Microphone/);
+  assert.match(install, /Accessibility/);
+  // Beta instructions must stay out of search results while they apply.
+  assert.match(install, /noindex/);
+});

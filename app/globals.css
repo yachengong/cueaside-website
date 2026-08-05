@@ -360,6 +360,144 @@ main {
   }
 }
 
+/* --- real product capture ------------------------------------------------- */
+
+.real-product-shot {
+  position: relative;
+  width: min(940px, 100%);
+  margin: 54px auto 0;
+  isolation: isolate;
+}
+
+.product-shot-glow {
+  position: absolute;
+  inset: 8% 8% 4%;
+  z-index: -1;
+  border-radius: 42px;
+  background:
+    radial-gradient(circle at 28% 18%, rgba(109, 92, 240, 0.34), transparent 48%),
+    radial-gradient(circle at 78% 74%, rgba(122, 162, 255, 0.28), transparent 48%);
+  filter: blur(54px);
+  transform: scale(1.06);
+}
+
+.real-product-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 26px;
+  box-shadow:
+    0 42px 100px rgba(15, 23, 42, 0.22),
+    0 14px 34px rgba(15, 23, 42, 0.16);
+}
+
+.real-product-shot figcaption {
+  margin: 18px auto 0;
+  color: var(--ink-faint);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.real-product-shot figcaption span {
+  display: inline-block;
+  margin-right: 9px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.product-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.product-proof-grid > div {
+  padding: 24px;
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow-sm);
+}
+
+.product-proof-grid span {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.product-proof-grid b {
+  display: block;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.product-proof-grid p {
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-product-shot {
+    animation: product-arrive 900ms var(--ease) 760ms backwards;
+  }
+
+  .product-shot-glow {
+    animation: product-glow 5.5s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes product-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.975);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes product-glow {
+  from {
+    opacity: 0.72;
+    transform: scale(1.02) translate3d(-1%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.09) translate3d(1%, -1%, 0);
+  }
+}
+
+@media (max-width: 760px) {
+  .real-product-shot {
+    margin-top: 38px;
+  }
+
+  .real-product-shot img {
+    border-radius: 18px;
+  }
+
+  .real-product-shot figcaption span {
+    display: block;
+    margin: 0 0 3px;
+  }
+
+  .product-proof-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --- hero stage: the playable scene ---------------------------------------- */
 
 .hero-stage {

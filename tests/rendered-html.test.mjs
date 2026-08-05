@@ -14,9 +14,11 @@ test("renders the CueAside disclosure document", async () => {
     source("app/layout.tsx"),
   ]);
 
-  assert.match(home, /The copilot you could use with the door open/);
+  assert.match(home, /Know.*conversation.*moving\./s);
   assert.match(home, /Server Ledger/);
-  assert.match(home, /START HERE/);
+  assert.match(home, /Real CueAside interface/);
+  assert.match(home, /cueaside-overlay-real\.png/);
+  assert.doesNotMatch(home, /drawn in code/);
   assert.match(home, /What it won&#x27;t do|What it won.t do/);
   assert.match(home, /Where we stand/);
   assert.match(home, /store:false/);

@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://cueaside.com"),
-  title: "CueAside — The copilot you could use with the door open",
+  title: "CueAside — Know what to say while the conversation is moving",
   description:
     "A macOS speaking copilot for interviews and meetings. It catches the question and hands you one answer you can say. Our servers never keep a word you say — the complete list of what they do keep is printed on the homepage.",
   applicationName: "CueAside",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     apple: "/cueaside-icon.png",
   },
   openGraph: {
-    title: "CueAside — The copilot you could use with the door open",
+    title: "CueAside — Know what to say while the conversation is moving",
     description:
       "Presenter notes for live conversation, on macOS. Three kinds of record on our servers, none of them your words — printed on the homepage.",
     url: "https://cueaside.com",
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "CueAside — The copilot you could use with the door open",
+    title: "CueAside — Know what to say while the conversation is moving",
     description:
       "Presenter notes for live conversation, on macOS. Three kinds of record on our servers, none of them your words — printed on the homepage.",
     images: ["https://cueaside.com/og.png"],

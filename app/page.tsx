@@ -1,12 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 
-import CaptureTest from "./capture-test";
 import EarlyAccessForm from "./early-access-form";
-import HeroStage from "./hero-stage";
-import OverlayDemo from "./overlay-demo";
 import ScrollFX from "./scroll-fx";
 import ServerLedger from "./server-ledger";
-import ShortcutBoard from "./shortcut-board";
 
 /*
  * The page is a disclosure document. Two rules for anyone editing it:
@@ -93,7 +89,7 @@ export default function Home() {
           macOS · Early access · Built by one developer
         </div>
         <h1>
-          {"The copilot you could use".split(" ").map((word, index) => (
+          {"Know what to say while".split(" ").map((word, index) => (
             <span
               className="w"
               key={index}
@@ -103,7 +99,7 @@ export default function Home() {
               {" "}
             </span>
           ))}
-          {"with the door open.".split(" ").map((word, index) => (
+          {"the conversation is moving.".split(" ").map((word, index) => (
             <span
               className="w grad"
               key={`g${index}`}
@@ -115,9 +111,9 @@ export default function Home() {
           ))}
         </h1>
         <p className="hero-sub">
-          CueAside listens on your Mac, catches the question, and shows one
-          answer you can actually say — the first sentence, then the points
-          underneath it. It never joins your meeting.{" "}
+          CueAside listens on your Mac, catches the question, and turns it into
+          one answer you can say naturally — an opening line first, then a clear
+          path underneath it. It never joins your meeting.{" "}
           <strong>Our servers never keep a word you say.</strong> Everything
           they do keep is printed on this page.
         </p>
@@ -126,7 +122,20 @@ export default function Home() {
           Read the Server Ledger ↓
         </a>
 
-        <HeroStage />
+        <figure className="real-product-shot hero-product-shot">
+          <div className="product-shot-glow" aria-hidden="true" />
+          <img
+            src="/cueaside-overlay-real.png"
+            alt="The real CueAside macOS overlay showing a general English project question and a structured spoken answer."
+            width={1240}
+            height={1290}
+          />
+          <figcaption>
+            <span>Real CueAside interface</span>
+            Generic English demonstration content. No personal interview or
+            meeting data.
+          </figcaption>
+        </figure>
       </section>
 
       <div className="compat-strip">
@@ -134,8 +143,6 @@ export default function Home() {
         because it only listens to the Mac audio input you choose. Nothing to
         install inside the call. No bot in the participant list.
       </div>
-
-      <CaptureTest />
 
       <Clause
         id="answer"
@@ -156,14 +163,32 @@ export default function Home() {
           </>
         }
       >
-        <OverlayDemo />
-        <p className="figure-caption">
-          Illustrative scenario, drawn in code — not a screen recording. We
-          label the difference. Thinking depth is a real control in the app;
-          switch it above to see what changes.
-        </p>
-
-        <ShortcutBoard />
+        <div className="product-proof-grid">
+          <div>
+            <span>Start speaking</span>
+            <b>The first sentence is visually distinct.</b>
+            <p>
+              You can begin with the direct answer while the supporting path is
+              ready underneath it.
+            </p>
+          </div>
+          <div>
+            <span>Keep the thread</span>
+            <b>Blue topic markers organize the answer.</b>
+            <p>
+              Each section gives you the next idea without turning the overlay
+              into a script you have to recite.
+            </p>
+          </div>
+          <div>
+            <span>Find the anchor</span>
+            <b>Key phrases stand out in amber.</b>
+            <p>
+              The emphasis helps your eyes return to the important point after
+              you look back at the other person.
+            </p>
+          </div>
+        </div>
       </Clause>
 
       <Clause

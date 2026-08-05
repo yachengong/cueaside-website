@@ -8,7 +8,7 @@ const rendered = (name) =>
 const source = (name) =>
   readFile(new URL(`../${name}`, import.meta.url), "utf8");
 
-test("renders the CueAside disclosure document", async () => {
+test("renders the CueAside commercial landing page", async () => {
   const [home, layout] = await Promise.all([
     rendered("index.html"),
     source("app/layout.tsx"),
@@ -19,8 +19,8 @@ test("renders the CueAside disclosure document", async () => {
   assert.match(home, /Real CueAside interface/);
   assert.match(home, /cueaside-overlay-real\.png/);
   assert.doesNotMatch(home, /drawn in code/);
-  assert.match(home, /What it won&#x27;t do|What it won.t do/);
-  assert.match(home, /Where we stand/);
+  assert.match(home, /One answer, built to be spoken/);
+  assert.match(home, /Your words are not the product/);
   assert.match(home, /store:false/);
   assert.match(home, /English, Chinese, Spanish/);
   assert.match(home, /"@type":\s*"SoftwareApplication"/);
@@ -56,7 +56,6 @@ test("the ledger prints only what the schema actually stores", async () => {
 test("the page makes no social-proof claims it cannot back", async () => {
   const home = await rendered("index.html");
 
-  assert.match(home, /NO TESTIMONIALS/);
   assert.doesNotMatch(home, /trusted by|as seen in|\d+[,\d]*\+? (users|customers)/i);
   // Banned brand vocabulary: superlatives and stealth marketing.
   assert.doesNotMatch(

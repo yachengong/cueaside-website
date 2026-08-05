@@ -6,17 +6,12 @@ import ScrollFX from "./scroll-fx";
 import ServerLedger from "./server-ledger";
 
 /*
- * The page is a disclosure document. Two rules for anyone editing it:
+ * The public landing page follows two rules:
  *  1. Every factual claim must be checkable in the app, the public schema, or
  *     the privacy policy. If it isn't, cut it.
  *  2. No testimonials, user counts, logos, or ratings until they are real,
  *     named with permission, and dated.
  */
-
-const DOC_DATE = "July 30, 2026";
-const DOC_VERSION = "v1.0";
-// Replace with the name or handle you want on the public page.
-const SIGNATORY = "Yachen";
 
 const LANGUAGES = [
   "English",
@@ -74,11 +69,11 @@ export default function Home() {
             <img src="/cueaside-icon.png" alt="" width={28} height={28} />
             CueAside
           </a>
-          <nav className="masthead-nav" aria-label="Document sections">
-            <a href="#ledger">Ledger</a>
-            <a href="#stance">Stance</a>
-            <a href="#limits">Limits</a>
-            <a href="#price">Price</a>
+          <nav className="masthead-nav" aria-label="Page sections">
+            <a href="#answer">Product</a>
+            <a href="#mechanism">How it works</a>
+            <a href="#ledger">Privacy</a>
+            <a href="#languages">Languages</a>
             <a href="#faq">FAQ</a>
           </nav>
           <a className="masthead-cta" href={beta ? "#download" : "#early-access"}>
@@ -89,7 +84,7 @@ export default function Home() {
 
       <section className="hero" id="top">
         <div className="hero-eyebrow mono">
-          macOS · Early access · Built by one developer
+          Native macOS · Early access
         </div>
         <h1>
           {"Know what to say while".split(" ").map((word, index) => (
@@ -114,16 +109,15 @@ export default function Home() {
           ))}
         </h1>
         <p className="hero-sub">
-          CueAside listens on your Mac, catches the question, and turns it into
-          one answer you can say naturally — an opening line first, then a clear
-          path underneath it. It never joins your meeting.{" "}
-          <strong>Our servers never keep a word you say.</strong> Everything
-          they do keep is printed on this page.
+          CueAside catches the question and gives you a natural opening line,
+          followed by a clear path when you need more. It works alongside the
+          conversation without joining the call.
         </p>
         <BetaAccess source="landing-hero" />
-        <a className="hero-secondary" href="#ledger">
-          Read the Server Ledger ↓
-        </a>
+        <p className="hero-trust">
+          <span aria-hidden="true">●</span>
+          Audio, transcripts, and answers are never stored on CueAside servers.
+        </p>
 
         <figure className="real-product-shot hero-product-shot">
           <div className="product-shot-glow" aria-hidden="true" />
@@ -142,28 +136,21 @@ export default function Home() {
       </section>
 
       <div className="compat-strip">
-        <b>Works alongside Zoom, Google Meet, Teams, Webex and Slack</b> —
-        because it only listens to the Mac audio input you choose. Nothing to
-        install inside the call. No bot in the participant list.
+        <b>Zoom · Google Meet · Teams · Webex · Slack</b>
+        <span>Native macOS</span>
+        <span>No meeting bot</span>
+        <span>No calendar access</span>
       </div>
 
       <Clause
         id="answer"
         number="01"
-        title="What you see when it matters."
+        title="One answer, built to be spoken."
         lede={
-          <>
-            <p className="clause-lede">
-              A hard question lands. You have about three seconds before the
-              silence starts working against you. CueAside spends them for you:
-              one opening sentence you can say immediately, then the structure
-              underneath it if the room wants more.
-            </p>
-            <p className="clause-lede">
-              Not a chat log. Not a wall of text you would have to read out
-              loud. One answer, shaped for a mouth instead of a screen.
-            </p>
-          </>
+          <p className="clause-lede">
+            Start with the direct sentence. Use the topic path underneath only
+            when the conversation asks for more.
+          </p>
         }
       >
         <div className="product-proof-grid">
@@ -197,11 +184,10 @@ export default function Home() {
       <Clause
         id="mechanism"
         number="02"
-        title="The whole mechanism, annotated."
+        title="From question to speaking in four steps."
         lede={
           <p className="clause-lede">
-            Four steps, no hidden fifth one. This is the entire path your words
-            take, including the part where they stop.
+            The complete path is short, visible, and controlled from your Mac.
           </p>
         }
       >
@@ -240,235 +226,34 @@ export default function Home() {
           </div>
         </div>
 
-        <ul className="footnotes">
-          <li>
-            <b>1.</b> The production schema has tables for billing, daily usage
-            counts and rate limits. There is no table for transcripts, prompts
-            or answers.
-          </li>
-          <li>
-            <b>2.</b> <code>store: false</code> instructs the AI provider not to
-            retain the request.
-          </li>
-          <li>
-            <b>3.</b> Abuse identifiers are HMAC hashes of your account id. The
-            provider never receives your email address.
-          </li>
-          <li>
-            <b>4.</b> Sessions live in the app on your Mac. Delete them there
-            and they are gone.
-          </li>
-        </ul>
+        <p className="mechanism-note">
+          Session history stays on your Mac. AI requests use storage disabled,
+          and CueAside keeps only account, subscription, and usage-count data.
+        </p>
       </Clause>
 
       <Clause
         id="ledger"
         number="03"
-        title="The Server Ledger."
+        title="Your words are not the product."
         lede={
           <p className="clause-lede">
-            Most products in this category describe their privacy in adjectives.
-            Here is ours as a count. Three kinds of record are kept about you.
-            None of them are your words.
+            The complete server record is shown as a count: three account-level
+            records, and zero words from your conversations.
           </p>
         }
       >
         <ServerLedger full />
-        <p className="ledger-caption">
-          Where every other product in this category puts a glowing screenshot,
-          we put the retention list. Each row maps to a table in the public
-          schema.
-        </p>
-
-        <div className="ledger-notes">
-          <div>
-            <h3>What store:false means</h3>
-            <p>
-              Every answer request is sent to the AI provider with retention
-              turned off, and our own servers never write it down. When the
-              answer reaches your screen, the request is over — there is nothing
-              left to leak, subpoena, or accidentally train on.
-            </p>
-          </div>
-          <div>
-            <h3>What the counters are for</h3>
-            <p>
-              Three numbers per day — answers, transcriptions, realtime tokens —
-              exist so fair-use limits work and one account can&rsquo;t melt the
-              service. They are counts, not contents.
-            </p>
-          </div>
-          <div>
-            <h3>Where your material lives</h3>
-            <p>
-              The resume, notes and briefs you prepare, plus your session
-              history, stay in the app on your Mac. They are never uploaded to a
-              CueAside database.
-            </p>
-          </div>
-          <div>
-            <h3>How to check any of this</h3>
-            <p>
-              The database schema is committed in the public repository and the{" "}
-              <a className="inline-link" href="/privacy/">
-                privacy policy
-              </a>{" "}
-              says the same thing in prose. If a claim on this page isn&rsquo;t
-              checkable in the app, the schema, or that policy, tell me and
-              I&rsquo;ll fix the page.
-            </p>
-          </div>
-        </div>
-      </Clause>
-
-      <Clause
-        id="stance"
-        number="04"
-        title="Where we stand."
-        lede={
-          <>
-            <p className="clause-lede">
-              The best-funded product in this category tells you to cheat on
-              everything. Across the category, &ldquo;undetectable&rdquo; is
-              literally the premium tier — one product charges roughly seven
-              times its normal price for it, and another asks a few hundred
-              dollars a month.
-            </p>
-            <p className="clause-lede">
-              That is a business built on your fear of being caught. This one is
-              built on the opposite bet: most people don&rsquo;t want to be
-              someone else in the room. They want to be themselves without
-              freezing.
-            </p>
-          </>
-        }
-      >
-        <p>
-          Every keynote speaker on earth reads from notes the audience never
-          sees. A teleprompter isn&rsquo;t a lie — pretending to be someone you
-          aren&rsquo;t is. CueAside is presenter notes for a conversation:{" "}
-          <strong>your own preparation, surfaced at the moment you need it.</strong>{" "}
-          The material it uses is the material you gave it.
-        </p>
-
-        <ol className="numbered">
-          <li>
-            <div>
-              <b>It never joins your meeting, speaks, or impersonates you.</b>
-              <span>
-                No bot in the participant list, no calendar scopes, no
-                integration to grant. It hears what your Mac hears and that is
-                all it does.
-              </span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <b>The servers never keep your words.</b>
-              <span>
-                Not the audio, not the transcript, not the answer. The ledger
-                above is the whole list, and the schema behind it is public.
-              </span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <b>Stealth will never be a paid tier here.</b>
-              <span>
-                We will not build a feature whose value is that someone else
-                can&rsquo;t tell, and then charge you extra for it.
-              </span>
-            </div>
-          </li>
-        </ol>
-
-        <p style={{ marginTop: "34px" }}>
-          <strong>On discretion.</strong> The overlay stays out of supported
-          screen captures the way presenter notes stay off the projector. That
-          is discretion for your own notes — and it will never be marketed as a
-          way to deceive anyone.
-        </p>
-        <p>
-          <strong>On consent.</strong>{" "}
-          Rules about recording and transcribing
-          conversations vary by region, and some require everyone&rsquo;s
-          agreement. Know the rules that apply to you before using any tool that
-          listens. A good test: if someone asked what was on your screen, you
-          should be able to answer.
-        </p>
-      </Clause>
-
-      <Clause
-        id="limits"
-        number="05"
-        title="What it won't do."
-        lede={
-          <p className="clause-lede">
-            Every other page in this category lists what the product does. This
-            is the list I would want to read first.
-          </p>
-        }
-      >
-        <ol className="numbered">
-          <li>
-            <div>
-              <b>It won&rsquo;t answer for you.</b>
-              <span>
-                It suggests; you speak. Nothing reaches the other person except
-                what comes out of your mouth.
-              </span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <b>It won&rsquo;t make you sound like you know something you
-              don&rsquo;t.</b>
-              <span>
-                Interviews have follow-up questions. This is built for retrieval
-                under pressure, not for pretending.
-              </span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <b>It won&rsquo;t read well if you recite it.</b>
-              <span>
-                The answers are written to be spoken from, not read out. Read
-                one word-for-word and you will sound like someone reading.
-              </span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <b>It won&rsquo;t rescue an unprepared call.</b>
-              <span>
-                Answers are grounded in the context you provide. Give it
-                nothing, and you get something generic — the same thing any chat
-                window would have told you.
-              </span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <b>It won&rsquo;t run on Windows.</b>
-              <span>
-                It is a native macOS app. That is a real limitation and not a
-                positioning statement.
-              </span>
-            </div>
-          </li>
-        </ol>
       </Clause>
 
       <Clause
         id="languages"
-        number="06"
-        title="Alongside, not inside — in eleven languages."
+        number="04"
+        title="Across your calls, in eleven languages."
         lede={
           <p className="clause-lede">
-            It works with every call app because it works with none of them. And
-            because the answer is built for speaking, the language it&rsquo;s
-            built in matters more than usual.
+            CueAside listens from macOS, so it works without a meeting bot or
+            a separate integration for every call app.
           </p>
         }
       >
@@ -512,25 +297,16 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        <blockquote className="vignette">
-          You did the work in your first language. The interview is in your
-          second. The answer arrives phrased the way that language is actually
-          spoken — and the technical terms stay exactly as precise as they were.
-          <small>Illustrative scenario, not a customer quote</small>
-        </blockquote>
       </Clause>
 
       <Clause
         id="settings"
-        number="07"
-        title="Your settings. Your Mac."
+        number="05"
+        title="Tune speed, language, and context."
         lede={
           <p className="clause-lede">
-            Everything that shapes an answer is set by you, before the
-            conversation starts. The more context you give it, the more the
-            answers sound like your preparation — because they are built from
-            it.
+            Choose how quickly CueAside answers and what preparation it should
+            use before the conversation begins.
           </p>
         }
       >
@@ -580,110 +356,12 @@ export default function Home() {
       </Clause>
 
       <Clause
-        id="build"
-        number="08"
-        title="The state of the build."
-        lede={
-          <p className="clause-lede">
-            Early access means the honest version of a launch: some of this is
-            finished, some of it isn&rsquo;t, and you deserve to know which is
-            which before you hand over an email address.
-          </p>
-        }
-      >
-        <div className="signed-note">
-          <p>
-            I build CueAside alone. What works today: the macOS app, the
-            overlay, the eleven answer languages, coding mode, local session
-            history, and the hosted API with email-code sign-in and
-            subscriptions.
-          </p>
-          <p>
-            What doesn&rsquo;t exist yet: public checkout — it opens inside the
-            app when early access ends — a Windows version, and everything on
-            the roadmap I haven&rsquo;t earned the right to promise. When those
-            change, this clause changes with them.
-          </p>
-
-          <div className="statement">
-            <p>
-              THIS PAGE HAS NO TESTIMONIALS, NO USER COUNTS, NO COMPANY LOGOS
-              AND NO RATINGS — BECAUSE THERE ARE NO CUSTOMERS YET.
-            </p>
-            <p>
-              WHEN THERE ARE, THE QUOTES WILL BE REAL, NAMED WITH PERMISSION,
-              AND DATED. COMPARE THAT POLICY WITH ANYONE ELSE IN THIS MARKET.
-            </p>
-          </div>
-
-          <div className="signature">
-            — {SIGNATORY}, building CueAside
-            <small>
-              {DOC_DATE} · Page copy {DOC_VERSION} · Every claim above maps to
-              the app, the public schema, or the privacy policy
-            </small>
-          </div>
-        </div>
-      </Clause>
-
-      <Clause
-        id="price"
-        number="09"
-        title="One plan, priced like software."
-        lede={
-          <p className="clause-lede">
-            The price doesn&rsquo;t exist yet. The shape of the deal does, and
-            publishing it now is the only way it can be held against me later.
-          </p>
-        }
-      >
-        <div className="pledge">
-          <div className="pledge-row">
-            <i>✓</i>
-            <div>One subscription with every feature in it. No tier you have
-            to reach to get the good version.</div>
-          </div>
-          <div className="pledge-row">
-            <i>✓</i>
-            <div>
-              No stealth surcharge. Elsewhere, being undetectable is the
-              expensive tier; here it isn&rsquo;t a product at all.
-            </div>
-          </div>
-          <div className="pledge-row">
-            <i>✓</i>
-            <div>
-              No credit packs, no struck-through anchor prices, no
-              annual-only arithmetic designed to make a number look smaller.
-            </div>
-          </div>
-          <div className="pledge-row">
-            <i>✓</i>
-            <div>
-              Checkout happens inside the app through Stripe. Cancel from the
-              Stripe billing portal — no email, no phone call, no retention
-              gauntlet.
-            </div>
-          </div>
-          <div className="pledge-price">
-            <span>Monthly price</span>
-            <b>$ ——— / month</b>
-            <small>
-              The price will be printed here, in this font, before anyone is
-              charged. People on the early-access list hear it first.
-            </small>
-          </div>
-        </div>
-      </Clause>
-
-      <Clause
         id="faq"
-        number="10"
-        title="Signature."
+        number="06"
+        title="Questions before you try it."
         lede={
           <p className="clause-lede">
-            Seven questions that decide whether this is for you, answered
-            without the marketing voice.
+            The practical answers about calls, privacy, consent, and access.
           </p>
         }
       >
@@ -695,8 +373,8 @@ export default function Home() {
               gave it — your own experience, your own material — at the moment
               you need it, and you decide what to say. It cannot make you
               someone who knows the answer, and interviews have follow-up
-              questions. Rules differ by employer, school and interviewer;
-              knowing yours is your call, and clause 04 is where we stand.
+              questions. Rules differ by employer, school and interviewer, so
+              check the policy that applies to your conversation.
             </p>
           </details>
           <details>
@@ -787,9 +465,7 @@ export default function Home() {
             Public schema
           </a>
         </nav>
-        <span>
-          {DOC_VERSION} · {DOC_DATE}
-        </span>
+        <span>Early access · August 2026</span>
       </footer>
     </main>
   );

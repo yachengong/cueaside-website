@@ -2,6 +2,7 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { publicBetaDownload } from "@/lib/public-beta";
 
 export const metadata: Metadata = {
   title: "Installing the CueAside beta — CueAside",
@@ -14,6 +15,8 @@ export const metadata: Metadata = {
 const UPDATED = "August 3, 2026";
 
 export default function InstallGuide() {
+  const beta = publicBetaDownload();
+
   return (
     <main className="legal-page">
       <header className="masthead">
@@ -35,11 +38,26 @@ export default function InstallGuide() {
         <h1>Installing the beta.</h1>
         <p className="legal-updated">Updated: {UPDATED}</p>
 
+        {beta ? (
+          <div className="install-download">
+            <a className="beta-download-primary" href={beta.url}>
+              Download CueAside beta
+            </a>
+            {beta.sha256 ? (
+              <code className="install-download-sha">SHA-256 {beta.sha256}</code>
+            ) : null}
+          </div>
+        ) : null}
+
         <section>
           <h2>What you need</h2>
           <ul>
             <li>A Mac running macOS 15.3 or later (Apple Silicon or Intel).</li>
-            <li>The DMG link from your beta invite email.</li>
+            <li>
+              {beta
+                ? "The CueAside DMG downloaded from this page."
+                : "The DMG link from your beta invite email."}
+            </li>
             <li>About two minutes, most of it spent on step 3.</li>
           </ul>
         </section>
@@ -136,6 +154,11 @@ export default function InstallGuide() {
           <pre className="install-code">
             <code>shasum -a 256 ~/Downloads/SideCue-beta-*.dmg</code>
           </pre>
+          {beta?.sha256 ? (
+            <p>
+              Expected SHA-256: <code>{beta.sha256}</code>
+            </p>
+          ) : null}
         </section>
 
         <section>

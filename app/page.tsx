@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
-import EarlyAccessForm from "./early-access-form";
+import { publicBetaDownload } from "@/lib/public-beta";
+import BetaAccess from "./beta-access";
 import ScrollFX from "./scroll-fx";
 import ServerLedger from "./server-ledger";
 
@@ -61,6 +62,8 @@ function Clause({
 }
 
 export default function Home() {
+  const beta = publicBetaDownload();
+
   return (
     <main>
       <ScrollFX />
@@ -78,8 +81,8 @@ export default function Home() {
             <a href="#price">Price</a>
             <a href="#faq">FAQ</a>
           </nav>
-          <a className="masthead-cta" href="#early-access">
-            Join early access
+          <a className="masthead-cta" href={beta ? "#download" : "#early-access"}>
+            {beta ? "Download beta" : "Join early access"}
           </a>
         </div>
       </header>
@@ -117,7 +120,7 @@ export default function Home() {
           <strong>Our servers never keep a word you say.</strong> Everything
           they do keep is printed on this page.
         </p>
-        <EarlyAccessForm source="landing-hero" />
+        <BetaAccess source="landing-hero" />
         <a className="hero-secondary" href="#ledger">
           Read the Server Ledger ↓
         </a>
@@ -743,25 +746,29 @@ export default function Home() {
           <details>
             <summary>When can I get it, and what will it cost?</summary>
             <p>
-              It&rsquo;s in early access now. Join the list and you get the
-              download link and the price before anyone is charged. Checkout
-              opens inside the app through Stripe when early access ends.
+              It&rsquo;s in early access now. {beta ? (
+                <>Download the private beta here; no one is charged during early access.</>
+              ) : (
+                <>Join the list and you get the download link and the price before anyone is charged.</>
+              )}{" "}
+              Checkout opens inside the app through Stripe when early access
+              ends.
             </p>
           </details>
         </div>
       </Clause>
 
-      <section className="closing" id="early-access">
+      <section className="closing" id={beta ? "download" : "early-access"}>
         <div className="mono" style={{ color: "var(--ink-faint)" }}>
           CueAside for macOS · Early access
         </div>
         <h2>Speak clearly before the moment moves on.</h2>
         <p>
-          Leave an email and you&rsquo;ll get the download link and the price
-          before anyone is charged. That address is one of the three things
-          these servers hold, and you can have it deleted by asking.
+          {beta
+            ? "Download the private beta and follow the two-minute installation guide. Early-access builds are free."
+            : "Leave an email and you’ll get the download link and the price before anyone is charged. That address is one of the three things these servers hold, and you can have it deleted by asking."}
         </p>
-        <EarlyAccessForm
+        <BetaAccess
           source="landing-closing"
           note="No sequence, no newsletter, no partner emails. The download link and the price."
         />

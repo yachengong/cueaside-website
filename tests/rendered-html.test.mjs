@@ -98,6 +98,19 @@ test("keeps the waitlist as the only conversion path", async () => {
   assert.match(home, /href="\/terms\/"/);
 });
 
+test("exposes a beta download only through validated public configuration", async () => {
+  const [access, config] = await Promise.all([
+    source("app/beta-access.tsx"),
+    source("lib/public-beta.ts"),
+  ]);
+
+  assert.match(access, /Download CueAside beta/);
+  assert.match(access, /EarlyAccessForm/);
+  assert.match(config, /CUEASIDE_BETA_DOWNLOAD_URL/);
+  assert.match(config, /url\.protocol !== "https:"/);
+  assert.match(config, /\^\[a-f0-9\]\{64\}\$/);
+});
+
 test("renders the trust pages", async () => {
   const [privacy, terms] = await Promise.all([
     rendered("privacy.html"),

@@ -133,6 +133,183 @@ test(
         ),
         /invalid usage request/,
       );
+
+      const consoleFoundation = await readFile(
+        new URL(
+          "../supabase/migrations/20260807072221_internal_console_foundation.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      const consoleTargetIndex = await readFile(
+        new URL(
+          "../supabase/migrations/20260807072310_internal_console_target_index.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      await pool.query(consoleFoundation);
+      await pool.query(consoleTargetIndex);
+
+      const consolePrivileges = await pool.query(`
+        select
+          (
+            select relrowsecurity
+            from pg_class
+            where oid = 'public.internal_admin_sessions'::regclass
+          ) as sessions_rls,
+          (
+            select relrowsecurity
+            from pg_class
+            where oid = 'public.internal_audit_log'::regclass
+          ) as audit_rls,
+          has_table_privilege(
+            'anon',
+            'public.internal_admin_sessions',
+            'SELECT'
+          ) as anon_sessions_select,
+          has_table_privilege(
+            'authenticated',
+            'public.internal_admin_sessions',
+            'SELECT'
+          ) as authenticated_sessions_select,
+          has_table_privilege(
+            'anon',
+            'public.internal_audit_log',
+            'SELECT'
+          ) as anon_audit_select,
+          has_table_privilege(
+            'authenticated',
+            'public.internal_audit_log',
+            'SELECT'
+          ) as authenticated_audit_select,
+          has_table_privilege(
+            'service_role',
+            'public.internal_admin_sessions',
+            'SELECT'
+          ) as service_sessions_select,
+          has_table_privilege(
+            'service_role',
+            'public.internal_admin_sessions',
+            'INSERT'
+          ) as service_sessions_insert,
+          has_table_privilege(
+            'service_role',
+            'public.internal_admin_sessions',
+            'UPDATE'
+          ) as service_sessions_update,
+          has_table_privilege(
+            'service_role',
+            'public.internal_admin_sessions',
+            'DELETE'
+          ) as service_sessions_delete,
+          has_table_privilege(
+            'service_role',
+            'public.internal_audit_log',
+            'SELECT'
+          ) as service_audit_select,
+          has_table_privilege(
+            'service_role',
+            'public.internal_audit_log',
+            'INSERT'
+          ) as service_audit_insert,
+          has_sequence_privilege(
+            'service_role',
+            'public.internal_audit_log_id_seq',
+            'USAGE'
+          ) as service_audit_sequence_usage
+      `);
+      assert.deepEqual(consolePrivileges.rows[0], {
+        sessions_rls: true,
+        audit_rls: true,
+        anon_sessions_select: false,
+        authenticated_sessions_select: false,
+        anon_audit_select: false,
+        authenticated_audit_select: false,
+        service_sessions_select: true,
+        service_sessions_insert: true,
+        service_sessions_update: true,
+        service_sessions_delete: true,
+        service_audit_select: true,
+        service_audit_insert: true,
+        service_audit_sequence_usage: true,
+      });
+
+      const consolePolicies = await pool.query(`
+        select count(*)::integer as count
+        from pg_policies
+        where schemaname = 'public'
+          and tablename in ('internal_admin_sessions', 'internal_audit_log')
+      `);
+      assert.equal(consolePolicies.rows[0].count, 0);
+
+      const contentColumns = await pool.query(`
+        select column_name
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name in ('internal_admin_sessions', 'internal_audit_log')
+          and column_name ~* '(audio|transcript|question|answer|prompt|content|context|resume|note|message)'
+      `);
+      assert.deepEqual(contentColumns.rows, []);
+
+      const targetIndex = await pool.query(`
+        select indexname
+        from pg_indexes
+        where schemaname = 'public'
+          and indexname = 'internal_audit_log_target_occurred_idx'
+      `);
+      assert.equal(targetIndex.rowCount, 1);
+
+      const adminId = userId(1);
+      await pool.query(
+        `insert into public.internal_admin_sessions
+          (token_hash, admin_user_id, expires_at)
+         values ($1, $2::uuid, now() + interval '8 hours')`,
+        ["a".repeat(64), adminId],
+      );
+      await pool.query(
+        `insert into public.internal_audit_log
+          (admin_user_id, action, page_number)
+         values ($1::uuid, 'login_succeeded', 1)`,
+        [adminId],
+      );
+
+      await assert.rejects(
+        pool.query(
+          `insert into public.internal_admin_sessions
+            (token_hash, admin_user_id, expires_at)
+           values ('not-a-hash', $1::uuid, now() + interval '8 hours')`,
+          [adminId],
+        ),
+        /internal_admin_sessions_token_hash_format/,
+      );
+      await assert.rejects(
+        pool.query(
+          `insert into public.internal_admin_sessions
+            (token_hash, admin_user_id, expires_at)
+           values ($1, $2::uuid, now() - interval '1 hour')`,
+          ["b".repeat(64), adminId],
+        ),
+        /internal_admin_sessions_expiry_order/,
+      );
+      await assert.rejects(
+        pool.query(
+          `insert into public.internal_audit_log
+            (admin_user_id, action, page_number)
+           values ($1::uuid, 'INVALID ACTION', 1)`,
+          [adminId],
+        ),
+        /internal_audit_log_action_format/,
+      );
+      await assert.rejects(
+        pool.query(
+          `insert into public.internal_audit_log
+            (admin_user_id, action, page_number)
+           values ($1::uuid, 'console_viewed', 0)`,
+          [adminId],
+        ),
+        /internal_audit_log_page_range/,
+      );
     } finally {
       await pool.end();
     }

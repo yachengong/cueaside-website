@@ -9,6 +9,7 @@ export interface CueAsideRuntime {
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;
   OPENAI_API_KEY?: string;
+  DEEPGRAM_API_KEY?: string;
   SAFETY_ID_SECRET?: string;
   BILLING_BYPASS_USER_IDS?: string;
 }

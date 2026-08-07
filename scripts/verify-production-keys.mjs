@@ -152,6 +152,24 @@ const supabase = (env.SUPABASE_URL ?? "").replace(/\/+$/, "");
   record("OpenAI API key", response.ok === true, `status ${response.status}`);
 }
 
+// --- Deepgram --------------------------------------------------------------
+
+{
+  const response = await call("https://api.deepgram.com/v1/auth/grant", {
+    method: "POST",
+    headers: {
+      Authorization: `Token ${env.DEEPGRAM_API_KEY ?? ""}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ttl_seconds: 60 }),
+  });
+  record(
+    "Deepgram API key can grant temporary tokens",
+    response.ok === true,
+    `status ${response.status}`,
+  );
+}
+
 // --- Report ----------------------------------------------------------------
 
 console.log("");

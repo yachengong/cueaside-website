@@ -138,3 +138,79 @@ test(
     }
   },
 );
+
+test(
+  "late Stripe events cannot recreate billing data after Auth deletion",
+  { skip: !databaseURL, timeout: 60_000 },
+  async () => {
+    const pool = new Pool({ connectionString: databaseURL });
+    const id = userId(101);
+    try {
+      await pool.query(`
+        drop table if exists public.usage_monthly cascade;
+        drop table if exists public.usage_daily cascade;
+        drop table if exists public.billing_accounts cascade;
+        drop table if exists auth.users cascade;
+        do $roles$
+        begin
+          if not exists (select 1 from pg_roles where rolname = 'anon') then
+            create role anon nologin;
+          end if;
+          if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+            create role authenticated nologin;
+          end if;
+          if not exists (select 1 from pg_roles where rolname = 'service_role') then
+            create role service_role nologin;
+          end if;
+        end
+        $roles$;
+        create schema if not exists auth;
+        create table auth.users (id uuid primary key);
+      `);
+      const commercialMigration = await readFile(
+        new URL(
+          "../supabase/migrations/202607290001_cueaside_commercial.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      const deletionMigration = await readFile(
+        new URL(
+          "../supabase/migrations/202608070001_account_deletion_safety.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
+      await pool.query(commercialMigration);
+      await pool.query(deletionMigration);
+      await pool.query("insert into auth.users (id) values ($1::uuid)", [id]);
+
+      const initial = await pool.query(
+        `select public.apply_subscription_update(
+          $1::uuid, 'person@example.com', 'cus_123', 'sub_123', 'active',
+          'price_123', 2000000000, false, 100, 100
+        ) as applied`,
+        [id],
+      );
+      assert.equal(initial.rows[0].applied, true);
+
+      await pool.query("delete from auth.users where id = $1::uuid", [id]);
+      const late = await pool.query(
+        `select public.apply_subscription_update(
+          $1::uuid, null, 'cus_123', 'sub_123', 'canceled',
+          'price_123', 2000000000, false, 101, 101
+        ) as applied`,
+        [id],
+      );
+      assert.equal(late.rows[0].applied, false);
+
+      const rows = await pool.query(
+        "select count(*)::integer as count from public.billing_accounts where user_id = $1::uuid",
+        [id],
+      );
+      assert.equal(rows.rows[0].count, 0);
+    } finally {
+      await pool.end();
+    }
+  },
+);

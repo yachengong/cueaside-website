@@ -20,6 +20,7 @@ import {
   UsageKind,
   usageDecision,
 } from "./usage-policy";
+import { stripeCustomerDeletionPath } from "./account-deletion-policy";
 
 export type { PlanId, UsageKind } from "./usage-policy";
 
@@ -143,6 +144,32 @@ export async function cancelStripeSubscriptionImmediately(
       "billing_error",
     );
   }
+}
+
+/**
+ * Remove the Stripe customer and stored payment methods during account
+ * deletion. Stripe also cancels any other active subscriptions attached to
+ * this customer. A missing customer means a prior attempt already succeeded.
+ */
+export async function deleteStripeCustomer(customerId: string): Promise<void> {
+  const response = await fetch(
+    `https://api.stripe.com/v1${stripeCustomerDeletionPath(customerId)}`,
+    {
+      method: "DELETE",
+      headers: stripeHeaders(),
+    },
+  );
+  if (!response.ok && response.status !== 404) {
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    throw new ServiceError(
+      payload.error?.message ?? "Billing is temporarily unavailable.",
+      502,
+      "billing_error",
+    );
+  }
+  await response.body?.cancel();
 }
 
 async function createStripeCustomer(user: CueAsideUser): Promise<string> {

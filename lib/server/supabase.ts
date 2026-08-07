@@ -1,5 +1,6 @@
 import { ServiceError, requireRuntimeValue } from "./runtime";
 import { observeExternalCall } from "./observability";
+import { accountDataDeletionPaths } from "./account-deletion-policy";
 
 export interface BillingAccountRow {
   user_id: string;
@@ -162,13 +163,11 @@ export async function monthlyUsageFor(
  * that cannot be mapped back to a user id; those entries expire on their
  * own and contain no contact or content data.
  */
-export async function deleteUserData(userId: string): Promise<void> {
-  const id = encodeURIComponent(userId);
-  for (const path of [
-    `usage_monthly?user_id=eq.${id}`,
-    `usage_daily?user_id=eq.${id}`,
-    `billing_accounts?user_id=eq.${id}`,
-  ]) {
+export async function deleteUserData(
+  userId: string,
+  email: string | null,
+): Promise<void> {
+  for (const path of accountDataDeletionPaths(userId, email)) {
     await adminRequest(path, {
       method: "DELETE",
       headers: { Prefer: "return=minimal" },

@@ -4,6 +4,10 @@ import {
   requireRuntimeValue,
 } from "./runtime";
 import { enforcePublicRateLimit } from "./rate-limit";
+import {
+  ACCOUNT_DELETION_LOGOUT_PATH,
+  bearerTokenFromAuthorization,
+} from "./account-deletion-policy";
 
 export interface CueAsideUser {
   id: string;
@@ -90,6 +94,16 @@ function supabaseURL(path: string): string {
     "Sign in is not configured yet.",
   ).replace(/\/+$/, "");
   return `${base}${path}`;
+}
+
+export function requireAccessToken(request: Request): string {
+  const token = bearerTokenFromAuthorization(
+    request.headers.get("authorization"),
+  );
+  if (!token) {
+    throw new ServiceError("Sign in to continue.", 401, "sign_in_required");
+  }
+  return token;
 }
 
 async function supabaseJSON(
@@ -217,11 +231,7 @@ export async function refreshSession(request: Request): Promise<Response> {
 }
 
 export async function requireUser(request: Request): Promise<CueAsideUser> {
-  const authorization = request.headers.get("authorization") ?? "";
-  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  if (!token) {
-    throw new ServiceError("Sign in to continue.", 401, "sign_in_required");
-  }
+  const token = requireAccessToken(request);
 
   const result = await supabaseJSON(
     "/auth/v1/user",
@@ -256,4 +266,28 @@ export async function requireUser(request: Request): Promise<CueAsideUser> {
     name,
     avatarUrl,
   };
+}
+
+/**
+ * Revoke all refresh sessions before deleting an Auth identity. Supabase
+ * access JWTs remain usable until their short expiry, but deleting the user in
+ * the next step makes /auth/v1/user reject them. A missing session already
+ * satisfies the revocation requirement and is safe to retry.
+ */
+export async function revokeUserSessions(accessToken: string): Promise<void> {
+  const response = await fetch(supabaseURL(ACCOUNT_DELETION_LOGOUT_PATH), {
+    method: "POST",
+    headers: supabaseHeaders(accessToken),
+    cache: "no-store",
+  });
+  if (response.ok || response.status === 401 || response.status === 403) {
+    await response.body?.cancel();
+    return;
+  }
+  await response.body?.cancel();
+  throw new ServiceError(
+    "Account deletion is temporarily unavailable.",
+    503,
+    "session_revocation_unavailable",
+  );
 }

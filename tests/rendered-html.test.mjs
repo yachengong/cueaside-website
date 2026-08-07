@@ -129,6 +129,7 @@ test("guards every AI route with authentication, usage, and burst limits", async
   }
   assert.match(deepgram, /scope: "deepgram-token"/);
   assert.match(deepgram, /recordUsage\(user\.id, "realtimeTokens"/);
+  assert.match(deepgram, /ttl_seconds: 5 \* 60/);
 
   const transcription = openai.slice(openai.indexOf("export async function proxyTranscription"));
   const validatesFileAt = transcription.indexOf("file instanceof File");

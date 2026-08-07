@@ -6,6 +6,8 @@ email addresses, or provider response bodies into an incident ticket or chat.
 
 ## What is monitored
 
+- GitHub Actions runs the privacy-safe `Production uptime` smoke every 15
+  minutes and supports a manual run after every deployment
 - Vercel deployment state, runtime errors, status codes, and function latency
 - `/api/health` availability and dependency readiness
 - privacy-safe `external_call` records with only service, operation, HTTP
@@ -18,6 +20,11 @@ email addresses, or provider response bodies into an incident ticket or chat.
 
 The server must never log provider bodies. A network exception is represented
 as `status: 0`; an HTTP provider failure uses its numeric status.
+
+The scheduled smoke records only the check label, HTTP status, duration, and
+attempt count. It verifies the homepage, public health, unauthenticated AI
+rejection, and unauthenticated Console redirect. Keep GitHub Actions failure
+notifications enabled for the repository owner.
 
 ## Suggested alerts
 

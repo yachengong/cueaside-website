@@ -1,0 +1,28 @@
+name: Production uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-uptime
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.repository == 'yachengong/cueaside-website'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CUEASIDE_PRODUCTION_URL: https://cueaside.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check production availability and access boundaries
+        run: node scripts/production-smoke.mjs

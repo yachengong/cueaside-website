@@ -1,5 +1,9 @@
 import { observeExternalCall } from "@/lib/server/observability";
-import { runtime, type CueAsideRuntime } from "@/lib/server/runtime";
+import {
+  publicSiteURL,
+  runtime,
+  type CueAsideRuntime,
+} from "@/lib/server/runtime";
 
 export type CredentialShape = { ok: boolean; hint?: string };
 
@@ -195,7 +199,7 @@ export async function liveProviderProbes(
           const body = (await response.json().catch(() => null)) as {
             data?: Array<{ status?: string; url?: string }>;
           } | null;
-          const expected = "https://cueaside.com/api/billing/webhook";
+          const expected = `${publicSiteURL(env)}/api/billing/webhook`;
           const target = body?.data?.find(
             (item) => normalizedWebhookURL(item.url ?? "") === expected,
           );

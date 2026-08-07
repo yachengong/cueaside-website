@@ -173,6 +173,15 @@ test("does not expose an unsigned private-beta download path", async () => {
   assert.doesNotMatch(env, /CUEASIDE_BETA_/);
 });
 
+test("static publishing uses the same stable webpack build path as production", async () => {
+  const script = await source("scripts/build-pages.mjs");
+  assert.match(script, /"build",\s*"--webpack"/);
+  assert.match(script, /rm\(new URL\("\.\.\/\.next\/"/);
+  assert.match(script, /app\/api/);
+  assert.match(script, /app\/internal/);
+  assert.match(script, /movedDirectories\.reverse\(\)/);
+});
+
 test("renders the trust pages", async () => {
   const [privacy, terms] = await Promise.all([
     rendered("privacy.html"),

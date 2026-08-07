@@ -307,6 +307,28 @@
   box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
 }
 
+.internal-live-badge.is-preview {
+  color: #6941c6;
+  background: #f4f3ff;
+  border-color: #d9d6fe;
+}
+
+.internal-live-badge.is-preview i {
+  background: #7f56d9;
+  box-shadow: 0 0 0 4px rgba(127, 86, 217, 0.12);
+}
+
+.internal-live-badge.is-development {
+  color: #475467;
+  background: #f2f4f7;
+  border-color: #d0d5dd;
+}
+
+.internal-live-badge.is-development i {
+  background: #667085;
+  box-shadow: 0 0 0 4px rgba(102, 112, 133, 0.12);
+}
+
 .internal-stat-grid {
   margin: 30px 0 22px;
   display: grid;

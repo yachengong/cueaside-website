@@ -1,5 +1,9 @@
 export interface CueAsideRuntime {
   PUBLIC_SITE_URL?: string;
+  VERCEL_ENV?: string;
+  HEALTH_PROBE_TOKEN?: string;
+  SENTRY_DSN?: string;
+  NEXT_PUBLIC_SENTRY_DSN?: string;
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -14,6 +18,12 @@ export interface CueAsideRuntime {
   BILLING_BYPASS_USER_IDS?: string;
   CUEASIDE_ADMIN_USER_IDS?: string;
 }
+
+export {
+  deploymentEnvironment,
+  publicSiteURL,
+  type CueAsideDeploymentEnvironment,
+} from "../deployment-environment";
 
 export function runtime(): CueAsideRuntime {
   return process.env as CueAsideRuntime;
@@ -74,11 +84,6 @@ export async function readJSON<T>(
   } catch {
     throw new ServiceError("Request body must be valid JSON.", 400, "invalid_json");
   }
-}
-
-export function publicSiteURL(): string {
-  return runtime().PUBLIC_SITE_URL?.trim().replace(/\/+$/, "") ||
-    "https://cueaside.com";
 }
 
 export async function pseudonymousIdentifier(value: string): Promise<string> {

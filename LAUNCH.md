@@ -58,15 +58,16 @@ ad-hoc DMG; CueAside has no unsigned private-beta release path.
 
 - Sentry: create org + two projects (macOS, Next.js). The website side is
   already wired — paste the DSN into Vercel as `SENTRY_DSN` and
-  `NEXT_PUBLIC_SENTRY_DSN` and it starts reporting. The macOS project's
-  DSN goes to Claude.
+  `NEXT_PUBLIC_SENTRY_DSN` and it starts reporting. Keep the macOS DSN for
+  the future native crash reporter; never commit either DSN to Git.
 - Better Stack (or UptimeRobot): monitors for `https://cueaside.com` and
   `https://cueaside.com/api/health`.
 - OpenAI: put CueAside in its own Project; set spend alerts at 50/75/90%
   and a hard limit.
 - Supabase: Pro plan for daily backups; enable custom SMTP + auth rate
   limits per their production checklist.
-- Vercel: enable Web Analytics and Observability (both are toggles).
+- Vercel: enable Web Analytics and Speed Insights, then verify one real event
+  in each dashboard after the next deployment.
 
 ## 5. Decisions to make (nobody can make them for you)
 
@@ -90,5 +91,11 @@ ad-hoc DMG; CueAside has no unsigned private-beta release path.
   subscription, drops billing/usage rows, deletes the auth identity.
 - Sentry wired for server, edge and browser; inert until a DSN is set.
 - Vercel Web Analytics component in the layout (activate via the toggle).
+- Vercel Speed Insights component in the layout (activate via the toggle).
+- The private Console labels Production, Preview, and Development explicitly;
+  it rejects the wrong Stripe mode and flags a Preview still pointed at the
+  production public URL.
+- The static marketing-site publisher excludes API and private Console routes
+  and uses the same verified Webpack path as the dynamic Vercel build.
 - Local DMG packaging was verified for engineering only. It is not a
   distributable release until Developer ID signing and Apple notarization pass.

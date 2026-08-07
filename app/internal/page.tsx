@@ -6,7 +6,11 @@ import {
   internalAdminPrincipalForToken,
   internalSessionCookieName,
 } from "@/lib/server/internal-auth";
-import { runtime } from "@/lib/server/runtime";
+import {
+  deploymentEnvironment,
+  publicSiteURL,
+  runtime,
+} from "@/lib/server/runtime";
 import {
   liveProviderProbes,
   providerShapeChecks,
@@ -73,14 +77,28 @@ function providerStatus(
 function stripeStatus(
   configured: boolean,
   live: LiveProviderHealth["stripe"] | null,
+  expectsLiveMode: boolean,
 ): { label: string; tone: StatusTone } {
   const base = providerStatus(configured, live);
   if (!live?.ok) return base;
-  if (!live.livemode) return { label: "Connected · Test mode", tone: "warning" };
-  if (!live.active || live.interval !== "month") {
-    return { label: "Live · Price needs review", tone: "warning" };
+  if (live.livemode !== expectsLiveMode) {
+    return {
+      label: live.livemode
+        ? "Wrong mode · Live"
+        : "Wrong mode · Test",
+      tone: "bad",
+    };
   }
-  return { label: "Live · Monthly", tone: "good" };
+  if (!live.active || live.interval !== "month") {
+    return {
+      label: `${expectsLiveMode ? "Live" : "Test"} · Price needs review`,
+      tone: "warning",
+    };
+  }
+  return {
+    label: `${expectsLiveMode ? "Live" : "Test"} · Monthly`,
+    tone: "good",
+  };
 }
 
 function stripeWebhookStatus(
@@ -141,13 +159,25 @@ export default async function InternalConsolePage({
   const usageByUser = new Map(usage.map((row) => [row.user_id, row]));
   const ownerIDs = bypassUserIDs();
   const adminIDs = configuredInternalAdminUserIDs();
+  const env = runtime();
+  const deployment = deploymentEnvironment(env);
+  const deploymentLabel = deployment === "production"
+    ? "Production"
+    : deployment === "preview"
+      ? "Preview"
+      : "Development";
+  const expectsLiveBilling = deployment === "production";
+  const siteURL = publicSiteURL(env);
+  const siteTargetIsExpected = deployment === "production"
+    ? siteURL === "https://cueaside.com"
+    : siteURL !== "https://cueaside.com";
   const pageCount = Math.max(1, Math.ceil(directory.total / PAGE_SIZE));
   const shownStart = directory.users.length ? (page - 1) * PAGE_SIZE + 1 : 0;
   const shownEnd = (page - 1) * PAGE_SIZE + directory.users.length;
   const activeCount = accounts.filter((row) =>
     ACTIVE_STATUSES.has(row.subscription_status),
   ).length;
-  const shapes = providerShapeChecks();
+  const shapes = providerShapeChecks(env);
   const providerRows = [
     {
       name: "Supabase Auth",
@@ -171,11 +201,12 @@ export default async function InternalConsolePage({
       status: stripeStatus(
         shapes.STRIPE_SECRET_KEY.ok && shapes.STRIPE_PRICE_ID.ok,
         providerHealth?.stripe ?? null,
+        expectsLiveBilling,
       ),
     },
     {
       name: "Stripe Webhook",
-      note: "Production entitlement updates",
+      note: `${deploymentLabel} entitlement updates`,
       status: stripeWebhookStatus(
         shapes.STRIPE_WEBHOOK_SECRET.ok,
         providerHealth?.stripeWebhook ?? null,
@@ -198,6 +229,48 @@ export default async function InternalConsolePage({
       ),
     },
   ];
+  const monitoringRows = [
+    {
+      name: "Web Analytics",
+      note: "Anonymous visits and traffic sources",
+      status: { label: "Installed", tone: "good" as const },
+    },
+    {
+      name: "Speed Insights",
+      note: "Real-user Core Web Vitals",
+      status: { label: "Installed", tone: "good" as const },
+    },
+    {
+      name: "Server Sentry",
+      note: "Content-free API and server errors",
+      status: providerStatus(Boolean(env.SENTRY_DSN?.trim()), null),
+    },
+    {
+      name: "Browser Sentry",
+      note: "Content-free website errors",
+      status: providerStatus(Boolean(env.NEXT_PUBLIC_SENTRY_DSN?.trim()), null),
+    },
+    {
+      name: "Live health probe",
+      note: "Token-gated external uptime check",
+      status: providerStatus(
+        (env.HEALTH_PROBE_TOKEN?.trim().length ?? 0) >= 32,
+        null,
+      ),
+    },
+    {
+      name: "Public site URL",
+      note: siteURL,
+      status: {
+        label: siteTargetIsExpected
+          ? "Environment-specific"
+          : deployment === "production"
+            ? "Wrong target"
+            : "Not isolated",
+        tone: siteTargetIsExpected ? "good" as const : "bad" as const,
+      },
+    },
+  ];
 
   return (
     <main className="internal-console-shell">
@@ -213,6 +286,7 @@ export default async function InternalConsolePage({
           <nav aria-label="Console sections">
             <a className="is-active" href="#accounts">Accounts</a>
             <a href="#providers">Provider health</a>
+            <a href="#monitoring">Monitoring</a>
             <a href="#audit">Access audit</a>
             <a href="#boundary">Privacy boundary</a>
           </nav>
@@ -229,11 +303,14 @@ export default async function InternalConsolePage({
             <p className="internal-kicker">Operations overview</p>
             <h1>Accounts and usage</h1>
             <p>
-              Read-only production data. No audio, transcripts, prompts,
+              Read-only {deploymentLabel.toLowerCase()} account data. No audio,
+              transcripts, prompts,
               answers, Context, or Project State.
             </p>
           </div>
-          <span className="internal-live-badge"><i /> Production</span>
+          <span className={`internal-live-badge is-${deployment}`}>
+            <i /> {deploymentLabel}
+          </span>
         </header>
 
         <section className="internal-stat-grid" aria-label="Account summary">
@@ -257,6 +334,33 @@ export default async function InternalConsolePage({
             <strong>{adminIDs.size}</strong>
             <small>Server allowlist</small>
           </article>
+        </section>
+
+        <section className="internal-panel internal-provider-panel" id="monitoring">
+          <div className="internal-panel-head">
+            <div>
+              <p className="internal-kicker">Observability</p>
+              <h2>Monitoring readiness</h2>
+            </div>
+          </div>
+          <div className="internal-provider-grid">
+            {monitoringRows.map((item) => (
+              <article key={item.name}>
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{item.note}</small>
+                </div>
+                <span className={`internal-provider-status is-${item.status.tone}`}>
+                  <i aria-hidden="true" />
+                  {item.status.label}
+                </span>
+              </article>
+            ))}
+          </div>
+          <p className="internal-provider-footnote">
+            Installed means the client instrumentation ships with this deployment.
+            Configured services still need one real dashboard event before launch.
+          </p>
         </section>
 
         <section className="internal-panel internal-provider-panel" id="providers">

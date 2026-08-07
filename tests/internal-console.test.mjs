@@ -90,18 +90,26 @@ test("Console routes and pages are present but absent from public navigation", a
 });
 
 test("Console runs provider checks only after an authenticated admin asks", async () => {
-  const [page, providers, health] = await Promise.all([
+  const [page, providers, health, layout] = await Promise.all([
     source("app/internal/page.tsx"),
     source("lib/server/provider-health.ts"),
     source("app/api/health/route.ts"),
+    source("app/layout.tsx"),
   ]);
 
   assert.match(page, /shouldRunProviderChecks \? liveProviderProbes\(\)/);
   assert.match(page, /provider_health_checked/);
   assert.match(page, /Run live checks/);
   assert.match(page, /No credential values are returned or stored/);
+  assert.match(page, /deploymentEnvironment/);
+  assert.match(page, /Wrong mode · Live/);
+  assert.match(page, /Wrong mode · Test/);
+  assert.match(page, /Monitoring readiness/);
+  assert.match(page, /Not isolated/);
   assert.match(providers, /provider_health/);
   assert.match(providers, /Stripe Webhook|webhook_endpoints/);
+  assert.match(providers, /publicSiteURL\(env\)/);
   assert.doesNotMatch(providers, /console\.(?:log|error|warn)/);
   assert.match(health, /liveProviderProbes/);
+  assert.match(layout, /SpeedInsights/);
 });

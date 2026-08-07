@@ -103,6 +103,16 @@ export default function PrivacyPolicy() {
             transcripts, questions, answers, prompts, prepared context, and
             saved session content.
           </p>
+          <p>
+            <strong>Performance diagnostics.</strong> For up to 30 days we keep
+            content-free answer timing and transcription health records. A
+            transcription record can contain the stream type, capture source,
+            delivery path, selected model and language, signal duration, voiced
+            duration, peak level, silence threshold, and a closed result such as
+            completed, empty, or failed. These records contain no account or
+            session identifier, filename, audio, transcript, question, answer,
+            prompt, prepared context, or provider response.
+          </p>
         </section>
 
         <section>

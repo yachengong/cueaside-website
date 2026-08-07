@@ -28,9 +28,10 @@ test("renders the CueAside commercial landing page", async () => {
 });
 
 test("the ledger prints only what the schema actually stores", async () => {
-  const [home, schema] = await Promise.all([
+  const [home, schema, transcriptionMetrics] = await Promise.all([
     rendered("index.html"),
     source("supabase/migrations/202607290001_cueaside_commercial.sql"),
+    source("supabase/migrations/20260807150000_transcription_diagnostic_metrics.sql"),
   ]);
 
   // Rows claimed as kept must exist as real columns.
@@ -51,6 +52,13 @@ test("the ledger prints only what the schema actually stores", async () => {
   assert.match(home, /Your audio/);
   assert.match(home, /Your transcripts/);
   assert.match(home, /Your questions &amp; answers|Your questions & answers/);
+  assert.match(home, /Content-free performance diagnostics/);
+  assert.match(transcriptionMetrics, /duration_ms integer/);
+  assert.match(transcriptionMetrics, /peak_rms_ppm integer/);
+  assert.doesNotMatch(
+    transcriptionMetrics,
+    /^\s*(audio|transcript|question|answer|prompt|content|message|context|resume|note)\w*\s+(text|jsonb|json|bytea)/im,
+  );
 });
 
 test("the page makes no social-proof claims it cannot back", async () => {
@@ -85,6 +93,7 @@ test("exposes the commercial API routes", async () => {
     "/api/internal/auth/request-code/route",
     "/api/internal/auth/verify-code/route",
     "/api/internal/auth/logout/route",
+    "/api/telemetry/transcription/route",
     "/api/waitlist/route",
   ]) {
     assert.ok(route in manifest, `missing route ${route}`);

@@ -101,6 +101,40 @@ export interface InternalAnswerMetricPage {
   total: number;
 }
 
+export interface InternalTranscriptionDiagnosticRow {
+  id: number;
+  recorded_at: string;
+  deployment: "production" | "preview" | "development";
+  kind: "capture" | "result";
+  stream_role: "question" | "spoken_reply";
+  capture_source: "system" | "input" | "unknown";
+  delivery: "realtime" | "file";
+  model:
+    | "deepgram-nova-3"
+    | "gpt-4o-transcribe"
+    | "gpt-4o-mini-transcribe"
+    | "gpt-realtime-whisper";
+  language:
+    | "auto" | "en" | "zh" | "es" | "fr" | "de"
+    | "ja" | "ko" | "pt" | "it" | "hi" | "ar";
+  disposition:
+    | "submitted"
+    | "submitted_on_stop"
+    | "discarded_write_failure"
+    | "discarded_silence"
+    | "discarded_manual_too_short"
+    | "discarded_below_minimum_voice"
+    | "completed"
+    | "empty"
+    | "failed"
+    | "language_review"
+    | "cancelled";
+  duration_ms: number | null;
+  voiced_ms: number | null;
+  peak_rms_ppm: number | null;
+  silence_threshold_ppm: number | null;
+}
+
 function adminURL(path: string): string {
   return `${requireRuntimeValue(
     "SUPABASE_URL",
@@ -383,6 +417,70 @@ export async function recordAnswerGenerationMetric(
       pricing_version: metric.pricingVersion,
     }),
   });
+}
+
+export async function insertTranscriptionDiagnosticMetric(input: {
+  kind: InternalTranscriptionDiagnosticRow["kind"];
+  streamRole: InternalTranscriptionDiagnosticRow["stream_role"];
+  captureSource: InternalTranscriptionDiagnosticRow["capture_source"];
+  delivery: InternalTranscriptionDiagnosticRow["delivery"];
+  model: InternalTranscriptionDiagnosticRow["model"];
+  language: InternalTranscriptionDiagnosticRow["language"];
+  disposition: InternalTranscriptionDiagnosticRow["disposition"];
+  durationMilliseconds: number | null;
+  voicedMilliseconds: number | null;
+  peakRMSPartsPerMillion: number | null;
+  silenceThresholdPartsPerMillion: number | null;
+}): Promise<void> {
+  await adminRequest("transcription_diagnostic_metrics", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      deployment: deploymentEnvironment(),
+      kind: input.kind,
+      stream_role: input.streamRole,
+      capture_source: input.captureSource,
+      delivery: input.delivery,
+      model: input.model,
+      language: input.language,
+      disposition: input.disposition,
+      duration_ms: input.durationMilliseconds,
+      voiced_ms: input.voicedMilliseconds,
+      peak_rms_ppm: input.peakRMSPartsPerMillion,
+      silence_threshold_ppm: input.silenceThresholdPartsPerMillion,
+    }),
+  });
+}
+
+export async function recentInternalTranscriptionDiagnostics(input: {
+  hours: number;
+  limit: number;
+}): Promise<InternalTranscriptionDiagnosticRow[]> {
+  const hours = Math.min(24 * 30, Math.max(1, Math.floor(input.hours)));
+  const limit = Math.min(1_000, Math.max(1, Math.floor(input.limit)));
+  const since = encodeURIComponent(
+    new Date(Date.now() - hours * 60 * 60 * 1_000).toISOString(),
+  );
+  const select = [
+    "id",
+    "recorded_at",
+    "deployment",
+    "kind",
+    "stream_role",
+    "capture_source",
+    "delivery",
+    "model",
+    "language",
+    "disposition",
+    "duration_ms",
+    "voiced_ms",
+    "peak_rms_ppm",
+    "silence_threshold_ppm",
+  ].join(",");
+  return adminRequest<InternalTranscriptionDiagnosticRow[]>(
+    `transcription_diagnostic_metrics?recorded_at=gte.${since}`
+      + `&select=${select}&order=recorded_at.desc,id.desc&limit=${limit}`,
+  );
 }
 
 export async function internalAnswerMetricsPage(input: {

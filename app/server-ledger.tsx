@@ -14,6 +14,7 @@ const KEPT: Array<[string, string]> = [
   ["Email address", "1"],
   ["Subscription record", "1"],
   ["Daily request counts", "3 numbers/day"],
+  ["Content-free performance diagnostics", "30 days"],
 ];
 
 const NOT_KEPT: Array<[string, string]> = [
@@ -25,7 +26,7 @@ const NOT_KEPT: Array<[string, string]> = [
 ];
 
 const SCHEMA_URL =
-  "https://github.com/yachengong/cueaside-website/blob/main/supabase/migrations/202607290001_cueaside_commercial.sql";
+  "https://github.com/yachengong/cueaside-website/tree/main/supabase/migrations";
 
 function Row({
   label,
@@ -122,7 +123,7 @@ export default function ServerLedger({ full = false }: { full?: boolean }) {
       ) : null}
       <p className="ledger-title">Server Ledger</p>
       <p className="ledger-sub">
-        What the CueAside servers hold, per account
+        What the CueAside servers hold
       </p>
       <div className="ledger-divider" aria-hidden="true" />
 
@@ -145,9 +146,9 @@ export default function ServerLedger({ full = false }: { full?: boolean }) {
       ))}
 
       <p className="ledger-foot">
-        AI calls are proxied server-side with store:false. Abuse-prevention keys
-        are hashes, not IP addresses. Session history stays in the app on your
-        Mac.{" "}
+        AI calls are proxied server-side with store:false. Operational metrics
+        contain no account or conversation identifiers. Abuse-prevention keys
+        are hashes, not IP addresses. Session history stays in the app on your Mac.{" "}
         <a href={SCHEMA_URL} target="_blank" rel="noreferrer">
           The schema is public →
         </a>

@@ -154,7 +154,7 @@ test("Console displays only content-free answer performance fields", async () =>
     "export async function recordAnswerGenerationMetric",
   );
   const metricReaderEnd = storage.indexOf(
-    "export async function billingAccountFor",
+    "export async function insertTranscriptionDiagnosticMetric",
     metricWriterStart,
   );
   const metricStorage = [
@@ -165,6 +165,34 @@ test("Console displays only content-free answer performance fields", async () =>
     metricStorage,
     /question|answerText|prompt|transcript|context|session_id/i,
   );
+});
+
+test("Console shows content-free transcription signal and result diagnostics", async () => {
+  const [page, storage, route, diagnostics, migration] = await Promise.all([
+    source("app/internal/page.tsx"),
+    source("lib/server/supabase.ts"),
+    source("app/api/telemetry/transcription/route.ts"),
+    source("lib/server/transcription-diagnostics.ts"),
+    source("supabase/migrations/20260807150000_transcription_diagnostic_metrics.sql"),
+  ]);
+  assert.match(page, /Transcription diagnostics/);
+  assert.match(page, /Submitted segments/);
+  assert.match(page, /Completed results/);
+  assert.match(page, /Audio and words are never stored/);
+  assert.match(storage, /insertTranscriptionDiagnosticMetric/);
+  assert.match(storage, /recentInternalTranscriptionDiagnostics/);
+  assert.match(route, /const user = await requireUser\(request\)/);
+  assert.match(diagnostics, /scope: "transcription-diagnostic"/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /security invoker/i);
+  assert.doesNotMatch(migration, /security definer/i);
+  assert.match(migration, /interval '30 days'/);
+  const executableMigration = migration.replace(/^\s*--.*$/gm, "");
+  assert.doesNotMatch(
+    executableMigration,
+    /\b(user_id|email|session_id|filename)\b/i,
+  );
+  assert.doesNotMatch(migration, /jsonb|json|bytea/i);
 });
 
 test("Console metrics use allowlisted filters, exact pagination, retention, and audit", async () => {

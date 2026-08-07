@@ -164,10 +164,18 @@ test(
         ),
         "utf8",
       );
+      const transcriptionDiagnosticsMigration = await readFile(
+        new URL(
+          "../supabase/migrations/20260807150000_transcription_diagnostic_metrics.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
       await pool.query(consoleFoundation);
       await pool.query(consoleTargetIndex);
       await pool.query(answerMetricsMigration);
       await pool.query(consoleRetentionMigration);
+      await pool.query(transcriptionDiagnosticsMigration);
 
       const consolePrivileges = await pool.query(`
         select
@@ -361,6 +369,60 @@ test(
         service_console_retention_execute: true,
       });
 
+      const transcriptionPrivileges = await pool.query(`
+        select
+          (
+            select relrowsecurity
+            from pg_class
+            where oid = 'public.transcription_diagnostic_metrics'::regclass
+          ) as metrics_rls,
+          has_table_privilege(
+            'anon',
+            'public.transcription_diagnostic_metrics',
+            'SELECT, INSERT, DELETE'
+          ) as anon_access,
+          has_table_privilege(
+            'authenticated',
+            'public.transcription_diagnostic_metrics',
+            'SELECT, INSERT, DELETE'
+          ) as authenticated_access,
+          has_table_privilege(
+            'service_role',
+            'public.transcription_diagnostic_metrics',
+            'SELECT, INSERT, DELETE'
+          ) as service_access,
+          has_sequence_privilege(
+            'service_role',
+            'public.transcription_diagnostic_metrics_id_seq',
+            'USAGE'
+          ) as service_sequence_usage,
+          has_function_privilege(
+            'anon',
+            'private.prune_transcription_diagnostic_metrics()',
+            'EXECUTE'
+          ) as anon_retention_execute,
+          has_function_privilege(
+            'authenticated',
+            'private.prune_transcription_diagnostic_metrics()',
+            'EXECUTE'
+          ) as authenticated_retention_execute,
+          has_function_privilege(
+            'service_role',
+            'private.prune_transcription_diagnostic_metrics()',
+            'EXECUTE'
+          ) as service_retention_execute
+      `);
+      assert.deepEqual(transcriptionPrivileges.rows[0], {
+        metrics_rls: true,
+        anon_access: false,
+        authenticated_access: false,
+        service_access: true,
+        service_sequence_usage: true,
+        anon_retention_execute: false,
+        authenticated_retention_execute: false,
+        service_retention_execute: true,
+      });
+
       const consolePolicies = await pool.query(`
         select count(*)::integer as count
         from pg_policies
@@ -368,7 +430,8 @@ test(
           and tablename in (
             'internal_admin_sessions',
             'internal_audit_log',
-            'answer_generation_metrics'
+            'answer_generation_metrics',
+            'transcription_diagnostic_metrics'
           )
       `);
       assert.equal(consolePolicies.rows[0].count, 0);
@@ -380,7 +443,8 @@ test(
           and table_name in (
             'internal_admin_sessions',
             'internal_audit_log',
-            'answer_generation_metrics'
+            'answer_generation_metrics',
+            'transcription_diagnostic_metrics'
           )
           and column_name ~* '(audio|transcript|question|answer|prompt|content|context|resume|note|message)'
       `);
@@ -392,14 +456,115 @@ test(
         where schemaname = 'public'
           and indexname in (
             'internal_audit_log_target_occurred_idx',
-            'answer_generation_metrics_recorded_id_idx'
+            'answer_generation_metrics_recorded_id_idx',
+            'transcription_diagnostic_metrics_recorded_id_idx'
           )
         order by indexname
       `);
       assert.deepEqual(consoleIndexes.rows, [
         { indexname: "answer_generation_metrics_recorded_id_idx" },
         { indexname: "internal_audit_log_target_occurred_idx" },
+        { indexname: "transcription_diagnostic_metrics_recorded_id_idx" },
       ]);
+
+      await pool.query(`
+        insert into public.transcription_diagnostic_metrics (
+          deployment,
+          kind,
+          stream_role,
+          capture_source,
+          delivery,
+          model,
+          language,
+          disposition,
+          duration_ms,
+          voiced_ms,
+          peak_rms_ppm,
+          silence_threshold_ppm,
+          recorded_at
+        ) values (
+          'production',
+          'capture',
+          'spoken_reply',
+          'input',
+          'realtime',
+          'deepgram-nova-3',
+          'en',
+          'submitted',
+          4200,
+          2600,
+          31000,
+          10000,
+          now() - interval '31 days'
+        )
+      `);
+      await pool.query("begin");
+      try {
+        await pool.query("set local role service_role");
+        await pool.query(`
+          insert into public.transcription_diagnostic_metrics (
+            deployment,
+            kind,
+            stream_role,
+            capture_source,
+            delivery,
+            model,
+            language,
+            disposition
+          ) values (
+            'production',
+            'result',
+            'spoken_reply',
+            'unknown',
+            'realtime',
+            'deepgram-nova-3',
+            'en',
+            'completed'
+          )
+        `);
+        await pool.query("commit");
+      } catch (error) {
+        await pool.query("rollback");
+        throw error;
+      }
+      const storedTranscriptionDiagnostics = await pool.query(`
+        select kind, stream_role, model, disposition, duration_ms
+        from public.transcription_diagnostic_metrics
+        order by recorded_at desc
+      `);
+      assert.deepEqual(storedTranscriptionDiagnostics.rows, [{
+        kind: "result",
+        stream_role: "spoken_reply",
+        model: "deepgram-nova-3",
+        disposition: "completed",
+        duration_ms: null,
+      }]);
+      await assert.rejects(
+        pool.query(`
+          insert into public.transcription_diagnostic_metrics (
+            deployment,
+            kind,
+            stream_role,
+            capture_source,
+            delivery,
+            model,
+            language,
+            disposition,
+            duration_ms
+          ) values (
+            'production',
+            'result',
+            'question',
+            'unknown',
+            'file',
+            'gpt-4o-transcribe',
+            'en',
+            'completed',
+            100
+          )
+        `),
+        /transcription_diagnostic_metrics_shape_check/,
+      );
 
       await pool.query(
         `insert into public.answer_generation_metrics (

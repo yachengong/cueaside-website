@@ -24,6 +24,7 @@ import {
   internalMonthlyUsageFor,
   listInternalAuthUsers,
   recentInternalAuditEvents,
+  recentInternalTranscriptionDiagnostics,
 } from "@/lib/server/supabase";
 
 export const dynamic = "force-dynamic";
@@ -222,6 +223,29 @@ function metricStatusTone(status: string): StatusTone {
   return "bad";
 }
 
+function diagnosticStatusTone(status: string): StatusTone {
+  if (status === "completed" || status.startsWith("submitted")) return "good";
+  if (status === "discarded_silence" || status === "empty") return "neutral";
+  if (status.startsWith("discarded_") || status === "language_review") {
+    return "warning";
+  }
+  return "bad";
+}
+
+function signalLabel(partsPerMillion: number | null): string {
+  return partsPerMillion === null
+    ? "—"
+    : (partsPerMillion / 1_000_000).toFixed(3);
+}
+
+function transcriptionModelLabel(model: string): string {
+  if (model === "deepgram-nova-3") return "Nova-3";
+  if (model === "gpt-4o-transcribe") return "4o Transcribe";
+  if (model === "gpt-4o-mini-transcribe") return "4o Mini";
+  if (model === "gpt-realtime-whisper") return "Realtime Whisper";
+  return model;
+}
+
 export default async function InternalConsolePage({
   searchParams,
 }: {
@@ -251,7 +275,13 @@ export default async function InternalConsolePage({
   const checksValue = Array.isArray(params.checks) ? params.checks[0] : params.checks;
   const shouldRunProviderChecks = checksValue === "live";
   const metricFilters = { hours, model, depth, status: metricStatus };
-  const [directory, providerHealth, answerMetricPage, answerMetricSummary] = await Promise.all([
+  const [
+    directory,
+    providerHealth,
+    answerMetricPage,
+    answerMetricSummary,
+    transcriptionDiagnostics,
+  ] = await Promise.all([
     listInternalAuthUsers({ page, perPage: PAGE_SIZE }),
     shouldRunProviderChecks ? liveProviderProbes() : Promise.resolve(null),
     internalAnswerMetricsPage({
@@ -264,6 +294,7 @@ export default async function InternalConsolePage({
       page: 1,
       perPage: METRIC_SUMMARY_LIMIT,
     }),
+    recentInternalTranscriptionDiagnostics({ hours: 24, limit: 500 }),
   ]);
   const pageCount = Math.max(1, Math.ceil(directory.total / PAGE_SIZE));
   const metricPageCount = Math.max(
@@ -345,6 +376,24 @@ export default async function InternalConsolePage({
   const completionPercent = answerMetrics.length
     ? Math.round(completedAnswerMetrics.length / answerMetrics.length * 100)
     : 0;
+  const transcriptionCaptures = transcriptionDiagnostics.filter(
+    (metric) => metric.kind === "capture",
+  );
+  const submittedCaptures = transcriptionCaptures.filter(
+    (metric) => metric.disposition.startsWith("submitted"),
+  );
+  const discardedCaptures = transcriptionCaptures.filter(
+    (metric) => metric.disposition.startsWith("discarded_"),
+  );
+  const transcriptionResults = transcriptionDiagnostics.filter(
+    (metric) => metric.kind === "result",
+  );
+  const completedTranscriptions = transcriptionResults.filter(
+    (metric) => metric.disposition === "completed",
+  );
+  const reviewedTranscriptions = transcriptionResults.filter(
+    (metric) => metric.disposition !== "completed",
+  );
   const metricShownStart = answerMetricPage.rows.length
     ? (metricsPage - 1) * METRIC_PAGE_SIZE + 1
     : 0;
@@ -484,6 +533,7 @@ export default async function InternalConsolePage({
           </div>
           <nav aria-label="Console sections">
             <a className="is-active" href="#accounts">Accounts</a>
+            <a href="#transcription-diagnostics">Transcription</a>
             <a href="#model-calls">Model calls</a>
             <a href="#providers">Provider health</a>
             <a href="#monitoring">Monitoring</a>
@@ -534,6 +584,104 @@ export default async function InternalConsolePage({
             <strong>{adminIDs.size}</strong>
             <small>Server allowlist</small>
           </article>
+        </section>
+
+        <section
+          className="internal-panel internal-metrics-panel"
+          id="transcription-diagnostics"
+        >
+          <div className="internal-panel-head">
+            <div>
+              <p className="internal-kicker">Last 24 hours</p>
+              <h2>Transcription diagnostics</h2>
+            </div>
+            <span>Latest {transcriptionDiagnostics.length.toLocaleString()} of 500</span>
+          </div>
+          <div
+            className="internal-metric-grid"
+            aria-label="Transcription diagnostic summary"
+          >
+            <article>
+              <span>Submitted segments</span>
+              <strong>{submittedCaptures.length.toLocaleString()}</strong>
+              <small>Passed the local signal gate</small>
+            </article>
+            <article>
+              <span>Discarded locally</span>
+              <strong>{discardedCaptures.length.toLocaleString()}</strong>
+              <small>Silence, too short, or write failure</small>
+            </article>
+            <article>
+              <span>Completed results</span>
+              <strong>{completedTranscriptions.length.toLocaleString()}</strong>
+              <small>Usable text returned to the app</small>
+            </article>
+            <article>
+              <span>Needs review</span>
+              <strong>{reviewedTranscriptions.length.toLocaleString()}</strong>
+              <small>Empty, failed, cancelled, or language hold</small>
+            </article>
+          </div>
+          <div className="internal-table-wrap">
+            <table className="internal-table internal-metrics-table">
+              <thead>
+                <tr>
+                  <th>Stream</th>
+                  <th>Kind</th>
+                  <th>Signal / voiced</th>
+                  <th>Peak / threshold</th>
+                  <th>Path</th>
+                  <th>Outcome</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transcriptionDiagnostics.slice(0, 20).map((metric) => (
+                  <tr key={metric.id}>
+                    <td>
+                      <strong>
+                        {metric.stream_role === "spoken_reply" ? "Your reply" : "Question"}
+                      </strong>
+                      <small>{dateTimeLabel(metric.recorded_at)}</small>
+                    </td>
+                    <td>{metric.kind === "capture" ? "Signal" : "Result"}</td>
+                    <td>
+                      {metric.duration_ms === null
+                        ? "—"
+                        : `${durationLabel(metric.duration_ms)} / ${durationLabel(metric.voiced_ms)}`}
+                    </td>
+                    <td>
+                      {signalLabel(metric.peak_rms_ppm)} / {signalLabel(metric.silence_threshold_ppm)}
+                    </td>
+                    <td>
+                      <strong>{transcriptionModelLabel(metric.model)}</strong>
+                      <small>
+                        {metric.delivery} · {metric.language.toUpperCase()} · {metric.capture_source}
+                      </small>
+                    </td>
+                    <td>
+                      <span
+                        className={`internal-provider-status is-${diagnosticStatusTone(metric.disposition)}`}
+                      >
+                        <i aria-hidden="true" />
+                        {metric.disposition.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {transcriptionDiagnostics.length === 0 ? (
+                  <tr>
+                    <td className="internal-empty-row" colSpan={6}>
+                      No content-free transcription diagnostics have been recorded yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          <p className="internal-provider-footnote">
+            Signal duration, voiced duration, peak, threshold, model, language,
+            and closed outcomes are retained for 30 days. Audio and words are never stored.
+          </p>
         </section>
 
         <section className="internal-panel internal-metrics-panel" id="model-calls">

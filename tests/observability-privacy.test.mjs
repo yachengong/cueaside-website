@@ -86,6 +86,35 @@ test("answer metrics contain timing, usage, and cost but no conversation text", 
   );
 });
 
+test("transcription diagnostics accept only closed signal and result fields", async () => {
+  const source = await readFile(
+    new URL("../lib/server/transcription-diagnostics.ts", import.meta.url),
+    "utf8",
+  );
+  for (const field of [
+    "streamRole",
+    "captureSource",
+    "delivery",
+    "model",
+    "language",
+    "disposition",
+    "durationMilliseconds",
+    "voicedMilliseconds",
+    "peakRMSPartsPerMillion",
+    "silenceThresholdPartsPerMillion",
+  ]) {
+    assert.match(source, new RegExp(`\\b${field}\\b`));
+  }
+  assert.doesNotMatch(
+    source,
+    /\b(audio|transcript|question|answer|prompt|context|sessionId|userId|filename)\s*:/i,
+  );
+  assert.match(source, /body\.schemaVersion !== 1/);
+  assert.match(source, /Object\.keys\(value\)/);
+  assert.match(source, /!FIELDS\.has\(field\)/);
+  assert.match(source, /scope: "transcription-diagnostic"/);
+});
+
 test("Sentry strips request and conversation context before sending", async () => {
   const source = await readFile(
     new URL("../instrumentation.ts", import.meta.url),

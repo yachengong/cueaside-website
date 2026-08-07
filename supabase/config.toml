@@ -1,10 +1,12 @@
 project_id = "cueaside"
 
 [auth]
+enable_signup = true
 site_url = "https://cueaside.com"
 additional_redirect_urls = ["cueaside://auth/callback", "cueaside://auth/callback**"]
 
 [auth.email]
+enable_signup = true
 enable_confirmations = true
 max_frequency = "1m"
 otp_length = 8

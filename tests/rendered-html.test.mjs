@@ -210,9 +210,10 @@ test("publishes search crawler discovery files", async () => {
 });
 
 test("hardens public authentication entry points", async () => {
-  const [rateLimit, auth] = await Promise.all([
+  const [rateLimit, auth, authConfig] = await Promise.all([
     readFile(new URL("../lib/server/rate-limit.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/server/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/config.toml", import.meta.url), "utf8"),
   ]);
 
   assert.match(rateLimit, /x-vercel-forwarded-for/);
@@ -220,6 +221,9 @@ test("hardens public authentication entry points", async () => {
   assert.match(auth, /invalid_oauth_state/);
   assert.match(auth, /callback\.searchParams\.set\("state", state\)/);
   assert.match(auth, /scope: "auth-refresh"/);
+  assert.match(auth, /create_user: true/);
+  assert.match(authConfig, /\[auth\][\s\S]*enable_signup = true/);
+  assert.match(authConfig, /\[auth\.email\][\s\S]*enable_signup = true/);
 });
 
 test("keeps account and billing responses compatible with the macOS app", async () => {

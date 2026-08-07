@@ -4,7 +4,21 @@ Everything the codebase can do is done and in CI. The items below need
 accounts, payments or credentials, so they are yours. Do them in order;
 each has a verification step so nothing is "probably fine".
 
-## 1. Production keys (blocks everything else)
+## 1. Allow new CueAside accounts
+
+In Supabase → CueAside → Authentication, turn **Allow new users to sign up**
+on. Keep Email enabled, keep email confirmation enabled, and keep Google
+enabled. The app deliberately sends `create_user: true`; if the project-wide
+signup switch is off, existing accounts can sign in but every new email gets
+`Signups not allowed for otp`.
+
+Verify with one disposable address that has never used CueAside: request the
+code, enter it in the macOS app, confirm the account appears in Supabase, then
+delete that disposable account through CueAside. Repeat once with a new Google
+identity. Do not use the private Console's email form for this test because it
+intentionally sets `create_user: false` and admits existing admins only.
+
+## 2. Production keys (blocks everything else)
 
 In Vercel → Project → Settings → Environment Variables, set for
 **Production** (Preview/Development get their own test values):
@@ -29,7 +43,7 @@ operator already has a private env file or directly supplied process variables.
 Every line must be ✅. After the next deploy you can also check from
 outside: `curl -H "x-health-token: $TOKEN" "https://cueaside.com/api/health?probe=live"`.
 
-## 2. Stripe live mode
+## 3. Stripe live mode
 
 1. Dashboard → switch to Live mode → create the Product and a monthly
    recurring Price → put its id in `STRIPE_PRICE_ID`.
@@ -43,7 +57,7 @@ outside: `curl -H "x-health-token: $TOKEN" "https://cueaside.com/api/health?prob
 The verifier script from step 1 checks the live key, the price
 (monthly + active + livemode) and that the webhook endpoint exists.
 
-## 3. Apple Developer Program ($99/yr)
+## 4. Apple Developer Program ($99/yr)
 
 Enroll at developer.apple.com with the Apple ID you want the company tied
 to. When membership is active, in Xcode → Settings → Accounts create a
@@ -54,7 +68,7 @@ When this is done, run the archive → sign → notarize → staple → DMG pipe
 and configure the signed update feed. Do not distribute the locally verified
 ad-hoc DMG; CueAside has no unsigned private-beta release path.
 
-## 4. Third-party monitoring accounts
+## 5. Third-party monitoring accounts
 
 - Sentry: create org + separate macOS and Next.js projects. The website side is
   already wired — paste the DSN into Vercel as `SENTRY_DSN` and
@@ -71,7 +85,7 @@ ad-hoc DMG; CueAside has no unsigned private-beta release path.
 - Vercel: enable Web Analytics and Speed Insights, then verify one real event
   in each dashboard after the next deployment.
 
-## 5. Decisions to make (nobody can make them for you)
+## 6. Decisions to make (nobody can make them for you)
 
 - Price of the Pro plan (the site prints "$ ——— / month" until then).
 - Refund window wording beyond the current "we fix billing mistakes".

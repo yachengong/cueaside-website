@@ -414,6 +414,10 @@
   min-width: 980px;
 }
 
+.internal-accounts-table {
+  min-width: 900px;
+}
+
 .internal-empty-row {
   padding: 32px 20px !important;
   color: #98a2b3 !important;
@@ -607,6 +611,14 @@
 .internal-plan.is-owner {
   background: #eeecff;
   color: #5f51d7;
+}
+
+.internal-plan-detail {
+  display: block;
+  margin-top: 5px;
+  color: #98a2b3;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .internal-pagination {

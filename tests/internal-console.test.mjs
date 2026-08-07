@@ -166,3 +166,23 @@ test("Console displays only content-free answer performance fields", async () =>
     /question|answerText|prompt|transcript|context|session_id/i,
   );
 });
+
+test("Console inspects every monthly usage counter and subscription lifecycle", async () => {
+  const [page, storage] = await Promise.all([
+    source("app/internal/page.tsx"),
+    source("lib/server/supabase.ts"),
+  ]);
+
+  assert.match(page, /Answers/);
+  assert.match(page, /Transcriptions/);
+  assert.match(page, /Live minutes/);
+  assert.match(page, /realtime_tokens \?\? 0\) \* 4/);
+  assert.match(page, /cancel_at_period_end/);
+  assert.match(page, /Trial through/);
+  assert.match(page, /Renews/);
+  assert.match(storage, /answer_requests/);
+  assert.match(storage, /transcription_requests/);
+  assert.match(storage, /realtime_tokens/);
+  assert.match(storage, /current_period_end/);
+  assert.match(storage, /cancel_at_period_end/);
+});

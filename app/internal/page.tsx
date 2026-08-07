@@ -53,6 +53,21 @@ function dateLabel(value: string | number | null): string {
       }).format(date);
 }
 
+function subscriptionDetail(input: {
+  owner: boolean;
+  paid: boolean;
+  status: string | null;
+  currentPeriodEnd: number | null;
+  cancelAtPeriodEnd: boolean;
+}): string {
+  if (input.owner) return "Unlimited";
+  if (!input.paid) return "Free tier";
+  const periodEnd = dateLabel(input.currentPeriodEnd);
+  if (input.cancelAtPeriodEnd) return `Ends ${periodEnd}`;
+  if (input.status === "trialing") return `Trial through ${periodEnd}`;
+  return `Renews ${periodEnd}`;
+}
+
 function bypassUserIDs(): Set<string> {
   return new Set(
     (runtime().BILLING_BYPASS_USER_IDS ?? "")
@@ -553,13 +568,14 @@ export default async function InternalConsolePage({
             <span>{shownStart}–{shownEnd} of {directory.total}</span>
           </div>
           <div className="internal-table-wrap">
-            <table className="internal-table">
+            <table className="internal-table internal-accounts-table">
               <thead>
                 <tr>
                   <th>Account</th>
                   <th>Plan</th>
                   <th>Answers</th>
                   <th>Transcriptions</th>
+                  <th>Live minutes</th>
                   <th>Last sign-in</th>
                 </tr>
               </thead>
@@ -581,9 +597,21 @@ export default async function InternalConsolePage({
                           {adminIDs.has(user.id.toLowerCase()) ? " · admin" : ""}
                         </small>
                       </td>
-                      <td><span className={`internal-plan is-${plan.toLowerCase()}`}>{plan}</span></td>
+                      <td>
+                        <span className={`internal-plan is-${plan.toLowerCase()}`}>{plan}</span>
+                        <small className="internal-plan-detail">
+                          {subscriptionDetail({
+                            owner,
+                            paid,
+                            status: account?.subscription_status ?? null,
+                            currentPeriodEnd: account?.current_period_end ?? null,
+                            cancelAtPeriodEnd: account?.cancel_at_period_end ?? false,
+                          })}
+                        </small>
+                      </td>
                       <td>{owner ? "Unlimited" : (counters?.answer_requests ?? 0)}</td>
                       <td>{owner ? "Unlimited" : (counters?.transcription_requests ?? 0)}</td>
+                      <td>{owner ? "Unlimited" : (counters?.realtime_tokens ?? 0) * 4}</td>
                       <td>{dateLabel(user.lastSignInAt)}</td>
                     </tr>
                   );

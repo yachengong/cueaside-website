@@ -69,3 +69,38 @@ export async function observeExternalCall(
     throw error;
   }
 }
+
+const ANSWER_DEPTHS = new Set([
+  "instinct",
+  "balanced",
+  "precise",
+  "thinking",
+]);
+
+/**
+ * Content-free product signal for tuning the first-readable deadline. Depths
+ * are closed enums and elapsed time is bounded; no conversation or identity
+ * fields are accepted here.
+ */
+export function recordAnswerFallback(input: {
+  fromDepth: string;
+  toDepth: string;
+  elapsedMs: number;
+}): void {
+  if (
+    !ANSWER_DEPTHS.has(input.fromDepth) ||
+    !ANSWER_DEPTHS.has(input.toDepth)
+  ) {
+    return;
+  }
+  const elapsedMs = Number.isFinite(input.elapsedMs)
+    ? Math.max(0, Math.min(60_000, Math.round(input.elapsedMs)))
+    : 0;
+  console.warn(JSON.stringify({
+    level: "warning",
+    event: "answer_fallback",
+    fromDepth: input.fromDepth,
+    toDepth: input.toDepth,
+    elapsedMs,
+  }));
+}

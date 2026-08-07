@@ -58,6 +58,18 @@ test("external-call telemetry has a closed content-free schema", async () => {
   }
 });
 
+test("answer fallback telemetry accepts only closed depths and elapsed time", async () => {
+  const source = await readFile(
+    new URL("../lib/server/observability.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /event: "answer_fallback"/);
+  assert.match(source, /ANSWER_DEPTHS\.has\(input\.fromDepth\)/);
+  assert.match(source, /ANSWER_DEPTHS\.has\(input\.toDepth\)/);
+  assert.match(source, /Math\.min\(60_000/);
+});
+
 test("Sentry strips request and conversation context before sending", async () => {
   const source = await readFile(
     new URL("../instrumentation.ts", import.meta.url),

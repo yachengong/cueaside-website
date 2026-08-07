@@ -7,30 +7,18 @@ import {
   requireRuntimeValue,
 } from "./runtime";
 import { enforceAccountRateLimit } from "./rate-limit";
-import { observeExternalCall } from "./observability";
-
-const DEPTHS = {
-  instinct: {
-    model: "gpt-5.6-luna",
-    effort: "none",
-    serviceTier: null,
-  },
-  balanced: {
-    model: "gpt-5.6-terra",
-    effort: "none",
-    serviceTier: null,
-  },
-  precise: {
-    model: "gpt-5.6-sol",
-    effort: "none",
-    serviceTier: "fast",
-  },
-  thinking: {
-    model: "gpt-5.6-sol",
-    effort: "medium",
-    serviceTier: "fast",
-  },
-} as const;
+import {
+  observeExternalCall,
+  recordAnswerFallback,
+} from "./observability";
+import {
+  ANSWER_ROUTES,
+  AnswerDepth,
+  AnswerStreamSource,
+  createSequentialAnswerStream,
+  inferAnswerDepth,
+  settleBeforeDeadline,
+} from "./answer-latency";
 
 async function openAIHeaders(userId: string): Promise<HeadersInit> {
   return {
@@ -63,29 +51,23 @@ type ResponseProxyBody = {
   cueaside_depth?: unknown;
 };
 
-function inferDepth(body: ResponseProxyBody): keyof typeof DEPTHS {
-  if (
-    typeof body.cueaside_depth === "string" &&
-    Object.prototype.hasOwnProperty.call(DEPTHS, body.cueaside_depth)
-  ) {
-    return body.cueaside_depth as keyof typeof DEPTHS;
-  }
+type AnswerRequestInput = {
+  instructions: string;
+  input: unknown;
+  maxOutputTokens: number;
+};
 
-  const requestedModel = typeof body.model === "string" ? body.model : "";
-  const effort =
-    typeof body.reasoning?.effort === "string"
-      ? body.reasoning.effort.toLowerCase()
-      : "none";
-  if (requestedModel === "gpt-5.6-luna") return "instinct";
-  if (requestedModel === "gpt-5.6-terra") return "balanced";
-  if (
-    requestedModel === "gpt-5.6-sol" &&
-    ["medium", "high", "xhigh", "max"].includes(effort)
-  ) {
-    return "thinking";
-  }
-  if (requestedModel === "gpt-5.6-sol") return "precise";
-  return "balanced";
+type UpstreamAttempt = {
+  abortController: AbortController;
+  response: Promise<Response>;
+};
+
+function inferDepth(body: ResponseProxyBody): AnswerDepth {
+  return inferAnswerDepth(
+    body.cueaside_depth,
+    body.model,
+    body.reasoning?.effort,
+  );
 }
 
 function validateText(value: unknown, field: string, maxLength: number): string {
@@ -115,6 +97,156 @@ function validateInput(value: unknown): unknown {
   return value;
 }
 
+function startAnswerUpstream(
+  request: Request,
+  user: CueAsideUser,
+  depth: AnswerDepth,
+  answer: AnswerRequestInput,
+): UpstreamAttempt {
+  const profile = ANSWER_ROUTES[depth];
+  const abortController = new AbortController();
+  const signal = AbortSignal.any([
+    request.signal,
+    abortController.signal,
+  ]);
+  const response = observeExternalCall(
+    { service: "openai", operation: "answer" },
+    async () => fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: await openAIHeaders(user.id),
+      signal,
+      body: JSON.stringify({
+        model: profile.model,
+        instructions: answer.instructions,
+        input: answer.input,
+        store: false,
+        stream: true,
+        max_output_tokens: answer.maxOutputTokens,
+        reasoning: { effort: profile.effort },
+        ...(profile.serviceTier
+          ? { service_tier: profile.serviceTier }
+          : {}),
+      }),
+    }),
+  );
+  return { abortController, response };
+}
+
+async function requireSuccessfulUpstream(
+  upstream: Response,
+): Promise<Response> {
+  if (upstream.ok) return upstream;
+  await upstream.body?.cancel();
+  throw new ServiceError(
+    "The answer service is temporarily unavailable.",
+    upstream.status === 429 ? 429 : 502,
+    "ai_upstream_error",
+  );
+}
+
+function answerResponse(
+  upstream: Response,
+  body: BodyInit | null = upstream.body,
+): Response {
+  return new Response(body, {
+    status: upstream.status,
+    headers: {
+      "Content-Type":
+        upstream.headers.get("content-type") ?? "text/event-stream",
+      "Cache-Control": "no-store",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+function answerStreamError(): Uint8Array {
+  const payload = JSON.stringify({
+    type: "error",
+    error: {
+      message: "The answer service is temporarily unavailable.",
+    },
+  });
+  return new TextEncoder().encode(`data: ${payload}\n\n`);
+}
+
+function guardedAnswerBody(input: {
+  request: Request;
+  user: CueAsideUser;
+  primaryDepth: AnswerDepth;
+  primary: UpstreamAttempt;
+  primaryResponse: Response;
+  deadlineAt: number;
+  answer: AnswerRequestInput;
+}): ReadableStream<Uint8Array> {
+  const primaryBody = input.primaryResponse.body;
+  if (!primaryBody) {
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(answerStreamError());
+        controller.close();
+      },
+    });
+  }
+
+  const source = (
+    attempt: UpstreamAttempt,
+    body: ReadableStream<Uint8Array>,
+  ): AnswerStreamSource => ({
+    body,
+    abort: (reason) => attempt.abortController.abort(reason),
+  });
+  let pendingFallbackAttempt: UpstreamAttempt | null = null;
+
+  return createSequentialAnswerStream({
+    primary: source(input.primary, primaryBody),
+    deadlineAt: input.deadlineAt,
+    fallback: async () => {
+      if (input.request.signal.aborted) {
+        throw new Error("Client canceled the answer request.");
+      }
+      const fallbackDepth = ANSWER_ROUTES[input.primaryDepth].fallbackDepth;
+      if (!fallbackDepth) throw new Error("No answer fallback is configured.");
+
+      recordAnswerFallback({
+        fromDepth: input.primaryDepth,
+        toDepth: fallbackDepth,
+        elapsedMs: Date.now() - (
+          input.deadlineAt
+          - ANSWER_ROUTES[input.primaryDepth].firstReadableTimeoutMs!
+        ),
+      });
+
+      const attempt = startAnswerUpstream(
+        input.request,
+        input.user,
+        fallbackDepth,
+        input.answer,
+      );
+      pendingFallbackAttempt = attempt;
+      let response: Response;
+      try {
+        response = await attempt.response;
+      } catch (error) {
+        attempt.abortController.abort("fallback_failed");
+        pendingFallbackAttempt = null;
+        throw error;
+      }
+      pendingFallbackAttempt = null;
+      if (!response.ok || !response.body) {
+        await response.body?.cancel();
+        attempt.abortController.abort("fallback_failed");
+        throw new Error("The fallback answer request failed.");
+      }
+      return source(attempt, response.body);
+    },
+    errorChunk: answerStreamError,
+    suppressError: () => input.request.signal.aborted,
+    onCancel: (reason) => {
+      pendingFallbackAttempt?.abortController.abort(reason);
+    },
+  });
+}
+
 export async function proxyAnswer(
   request: Request,
   user: CueAsideUser,
@@ -123,7 +255,7 @@ export async function proxyAnswer(
   const input = validateInput(body.input);
   const instructions = validateText(body.instructions, "instructions", 50_000);
   const depth = inferDepth(body);
-  const profile = DEPTHS[depth];
+  const profile = ANSWER_ROUTES[depth];
   const maxOutputTokens = Math.min(
     Math.max(Number(body.max_output_tokens) || 1_000, 256),
     4_000,
@@ -136,44 +268,53 @@ export async function proxyAnswer(
     windowSeconds: 5 * 60,
   });
   await authorizeAI(user, "answerRequests");
-  const upstream = await observeExternalCall(
-    { service: "openai", operation: "answer" },
-    async () => fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: await openAIHeaders(user.id),
-      body: JSON.stringify({
-        model: profile.model,
-        instructions,
-        input,
-        store: false,
-        stream: true,
-        max_output_tokens: maxOutputTokens,
-        reasoning: { effort: profile.effort },
-        ...(profile.serviceTier
-          ? { service_tier: profile.serviceTier }
-          : {}),
-      }),
-    }),
-  );
+  const answer = { instructions, input, maxOutputTokens };
+  let attempt = startAnswerUpstream(request, user, depth, answer);
 
-  if (!upstream.ok) {
-    await upstream.body?.cancel();
-    throw new ServiceError(
-      "The answer service is temporarily unavailable.",
-      upstream.status === 429 ? 429 : 502,
-      "ai_upstream_error",
-    );
+  if (profile.firstReadableTimeoutMs === null || !profile.fallbackDepth) {
+    const upstream = await requireSuccessfulUpstream(await attempt.response);
+    return answerResponse(upstream);
   }
 
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: {
-      "Content-Type":
-        upstream.headers.get("content-type") ?? "text/event-stream",
-      "Cache-Control": "no-store",
-      "X-Accel-Buffering": "no",
-    },
-  });
+  const deadlineAt = Date.now() + profile.firstReadableTimeoutMs;
+  const initial = await settleBeforeDeadline(attempt.response, deadlineAt);
+  if (initial.kind === "rejected") throw initial.error;
+
+  if (initial.kind === "timeout") {
+    attempt.abortController.abort("first_readable_timeout");
+    // Drain the rejected fetch before starting the fallback. This guarantees
+    // CueAside itself never has two provider attempts running concurrently.
+    await attempt.response.catch(() => {});
+    recordAnswerFallback({
+      fromDepth: depth,
+      toDepth: profile.fallbackDepth,
+      elapsedMs: Date.now() - (
+        deadlineAt - profile.firstReadableTimeoutMs
+      ),
+    });
+    attempt = startAnswerUpstream(
+      request,
+      user,
+      profile.fallbackDepth,
+      answer,
+    );
+    const fallback = await requireSuccessfulUpstream(await attempt.response);
+    return answerResponse(fallback);
+  }
+
+  const primaryResponse = await requireSuccessfulUpstream(initial.value);
+  return answerResponse(
+    primaryResponse,
+    guardedAnswerBody({
+      request,
+      user,
+      primaryDepth: depth,
+      primary: attempt,
+      primaryResponse,
+      deadlineAt,
+      answer,
+    }),
+  );
 }
 
 type ReplyCheckFact = {

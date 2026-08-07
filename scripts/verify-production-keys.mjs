@@ -4,7 +4,11 @@
  * not placeholders that merely exist. Run it yourself; keys never leave
  * your machine except to the service they belong to.
  *
- *   vercel env pull --environment=production .env.production.local
+ * Vercel Sensitive values cannot be read back after creation, so Production
+ * must be verified from the authenticated /internal/ Console. This script is
+ * only a local fallback when an operator already has directly supplied process
+ * variables or a private env file:
+ *
  *   node scripts/verify-production-keys.mjs .env.production.local
  *
  * Exit code 0 = every required check passed.
@@ -13,16 +17,14 @@
 import { readFileSync } from "node:fs";
 
 const file = process.argv[2];
-if (!file) {
-  console.error("usage: node scripts/verify-production-keys.mjs <env-file>");
-  process.exit(2);
-}
+const env = file ? {} : process.env;
 
-const env = {};
-for (const line of readFileSync(file, "utf8").split("\n")) {
-  const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*"?(.*?)"?\s*$/);
-  if (match) {
-    env[match[1]] = match[2];
+if (file) {
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*"?(.*?)"?\s*$/);
+    if (match) {
+      env[match[1]] = match[2];
+    }
   }
 }
 

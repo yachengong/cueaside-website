@@ -5,6 +5,7 @@ import test from "node:test";
 const serverFiles = [
   "lib/server/openai.ts",
   "lib/server/deepgram.ts",
+  "lib/server/provider-health.ts",
   "lib/server/supabase.ts",
 ];
 

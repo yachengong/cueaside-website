@@ -8,6 +8,12 @@ import {
 } from "@/lib/server/internal-auth";
 import { runtime } from "@/lib/server/runtime";
 import {
+  liveProviderProbes,
+  providerShapeChecks,
+  type LiveProviderHealth,
+  type ProviderProbe,
+} from "@/lib/server/provider-health";
+import {
   insertInternalAuditEvent,
   internalAccountsFor,
   internalMonthlyUsageFor,
@@ -51,10 +57,58 @@ function bypassUserIDs(): Set<string> {
   );
 }
 
+type StatusTone = "good" | "neutral" | "warning" | "bad";
+
+function providerStatus(
+  configured: boolean,
+  live: ProviderProbe | null,
+): { label: string; tone: StatusTone } {
+  if (!configured) return { label: "Not configured", tone: "bad" };
+  if (!live) return { label: "Configured", tone: "neutral" };
+  return live.ok
+    ? { label: "Connected", tone: "good" }
+    : { label: `Failed · ${live.status}`, tone: "bad" };
+}
+
+function stripeStatus(
+  configured: boolean,
+  live: LiveProviderHealth["stripe"] | null,
+): { label: string; tone: StatusTone } {
+  const base = providerStatus(configured, live);
+  if (!live?.ok) return base;
+  if (!live.livemode) return { label: "Connected · Test mode", tone: "warning" };
+  if (!live.active || live.interval !== "month") {
+    return { label: "Live · Price needs review", tone: "warning" };
+  }
+  return { label: "Live · Monthly", tone: "good" };
+}
+
+function stripeWebhookStatus(
+  configured: boolean,
+  live: LiveProviderHealth["stripeWebhook"] | null,
+): { label: string; tone: StatusTone } {
+  const base = providerStatus(configured, live);
+  if (!live || live.ok || live.status !== 200) return base;
+  return { label: "Endpoint missing", tone: "bad" };
+}
+
+function dateTimeLabel(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "just now"
+    : new Intl.DateTimeFormat("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date);
+}
+
 export default async function InternalConsolePage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string | string[] }>;
+  searchParams: Promise<{
+    checks?: string | string[];
+    page?: string | string[];
+  }>;
 }) {
   const cookieStore = await cookies();
   const principal = await internalAdminPrincipalForToken(
@@ -62,8 +116,14 @@ export default async function InternalConsolePage({
   );
   if (!principal) redirect("/internal/login/");
 
-  const page = parsePage((await searchParams).page);
-  const directory = await listInternalAuthUsers({ page, perPage: PAGE_SIZE });
+  const params = await searchParams;
+  const page = parsePage(params.page);
+  const checksValue = Array.isArray(params.checks) ? params.checks[0] : params.checks;
+  const shouldRunProviderChecks = checksValue === "live";
+  const [directory, providerHealth] = await Promise.all([
+    listInternalAuthUsers({ page, perPage: PAGE_SIZE }),
+    shouldRunProviderChecks ? liveProviderProbes() : Promise.resolve(null),
+  ]);
   const userIDs = directory.users.map((user) => user.id);
   const [accounts, usage, audit] = await Promise.all([
     internalAccountsFor(userIDs),
@@ -71,7 +131,9 @@ export default async function InternalConsolePage({
     recentInternalAuditEvents(16),
     insertInternalAuditEvent({
       adminUserId: principal.userId,
-      action: "console_viewed",
+      action: shouldRunProviderChecks
+        ? "provider_health_checked"
+        : "console_viewed",
       pageNumber: page,
     }),
   ]);
@@ -85,6 +147,57 @@ export default async function InternalConsolePage({
   const activeCount = accounts.filter((row) =>
     ACTIVE_STATUSES.has(row.subscription_status),
   ).length;
+  const shapes = providerShapeChecks();
+  const providerRows = [
+    {
+      name: "Supabase Auth",
+      note: "Sign-in and session service",
+      status: providerStatus(
+        shapes.SUPABASE_URL.ok && shapes.SUPABASE_ANON_KEY.ok,
+        providerHealth?.supabaseAuth ?? null,
+      ),
+    },
+    {
+      name: "Supabase Admin",
+      note: "Accounts, usage, and billing data",
+      status: providerStatus(
+        shapes.SUPABASE_URL.ok && shapes.SUPABASE_SERVICE_ROLE_KEY.ok,
+        providerHealth?.supabaseAdmin ?? null,
+      ),
+    },
+    {
+      name: "Stripe",
+      note: "Recurring monthly Price",
+      status: stripeStatus(
+        shapes.STRIPE_SECRET_KEY.ok && shapes.STRIPE_PRICE_ID.ok,
+        providerHealth?.stripe ?? null,
+      ),
+    },
+    {
+      name: "Stripe Webhook",
+      note: "Production entitlement updates",
+      status: stripeWebhookStatus(
+        shapes.STRIPE_WEBHOOK_SECRET.ok,
+        providerHealth?.stripeWebhook ?? null,
+      ),
+    },
+    {
+      name: "OpenAI",
+      note: "Answers and fallback transcription",
+      status: providerStatus(
+        shapes.OPENAI_API_KEY.ok,
+        providerHealth?.openai ?? null,
+      ),
+    },
+    {
+      name: "Deepgram",
+      note: "Short-lived realtime transcription tokens",
+      status: providerStatus(
+        shapes.DEEPGRAM_API_KEY.ok,
+        providerHealth?.deepgram ?? null,
+      ),
+    },
+  ];
 
   return (
     <main className="internal-console-shell">
@@ -99,6 +212,7 @@ export default async function InternalConsolePage({
           </div>
           <nav aria-label="Console sections">
             <a className="is-active" href="#accounts">Accounts</a>
+            <a href="#providers">Provider health</a>
             <a href="#audit">Access audit</a>
             <a href="#boundary">Privacy boundary</a>
           </nav>
@@ -119,7 +233,7 @@ export default async function InternalConsolePage({
               answers, Context, or Project State.
             </p>
           </div>
-          <span className="internal-live-badge"><i /> Live</span>
+          <span className="internal-live-badge"><i /> Production</span>
         </header>
 
         <section className="internal-stat-grid" aria-label="Account summary">
@@ -143,6 +257,40 @@ export default async function InternalConsolePage({
             <strong>{adminIDs.size}</strong>
             <small>Server allowlist</small>
           </article>
+        </section>
+
+        <section className="internal-panel internal-provider-panel" id="providers">
+          <div className="internal-panel-head">
+            <div>
+              <p className="internal-kicker">Infrastructure</p>
+              <h2>Provider health</h2>
+            </div>
+            <Link
+              className="internal-check-button"
+              href={`/internal/?page=${page}&checks=live#providers`}
+            >
+              Run live checks
+            </Link>
+          </div>
+          <div className="internal-provider-grid">
+            {providerRows.map((provider) => (
+              <article key={provider.name}>
+                <div>
+                  <strong>{provider.name}</strong>
+                  <small>{provider.note}</small>
+                </div>
+                <span className={`internal-provider-status is-${provider.status.tone}`}>
+                  <i aria-hidden="true" />
+                  {provider.status.label}
+                </span>
+              </article>
+            ))}
+          </div>
+          <p className="internal-provider-footnote">
+            {providerHealth
+              ? `Checked ${dateTimeLabel(providerHealth.checkedAt)} from the deployed server. No credential values are returned or stored.`
+              : "Configured means the deployed value has the expected shape. Run live checks to verify the providers without downloading credentials."}
+          </p>
         </section>
 
         <section className="internal-panel" id="accounts">

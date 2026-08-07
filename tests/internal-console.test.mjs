@@ -88,3 +88,20 @@ test("Console routes and pages are present but absent from public navigation", a
   assert.match(nextConfig, /source: "\/internal\/:path\*"/);
   assert.match(nextConfig, /noindex, nofollow, noarchive/);
 });
+
+test("Console runs provider checks only after an authenticated admin asks", async () => {
+  const [page, providers, health] = await Promise.all([
+    source("app/internal/page.tsx"),
+    source("lib/server/provider-health.ts"),
+    source("app/api/health/route.ts"),
+  ]);
+
+  assert.match(page, /shouldRunProviderChecks \? liveProviderProbes\(\)/);
+  assert.match(page, /provider_health_checked/);
+  assert.match(page, /Run live checks/);
+  assert.match(page, /No credential values are returned or stored/);
+  assert.match(providers, /provider_health/);
+  assert.match(providers, /Stripe Webhook|webhook_endpoints/);
+  assert.doesNotMatch(providers, /console\.(?:log|error|warn)/);
+  assert.match(health, /liveProviderProbes/);
+});

@@ -17,14 +17,14 @@ In Vercel → Project → Settings → Environment Variables, set for
   short-lived Nova-3 tokens)
 - `HEALTH_PROBE_TOKEN` (any long random string; enables deep health checks)
 
-Verify — keys never leave your machine:
+Production and Preview provider credentials are Vercel Sensitive variables,
+so their values cannot be read back after creation. Verify them from the
+authenticated `/internal/` Console: open **Provider health** and choose
+**Run live checks**. The checks run inside the deployed server and return only
+status, Stripe mode, and webhook readiness — never credential values.
 
-```bash
-cd ~/cueaside-website
-npx vercel env pull --environment=production .env.production.local
-node scripts/verify-production-keys.mjs .env.production.local
-rm .env.production.local
-```
+The local `scripts/verify-production-keys.mjs` remains available only when an
+operator already has a private env file or directly supplied process variables.
 
 Every line must be ✅. After the next deploy you can also check from
 outside: `curl -H "x-health-token: $TOKEN" "https://cueaside.com/api/health?probe=live"`.

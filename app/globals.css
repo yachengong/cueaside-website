@@ -347,6 +347,116 @@
   overflow: hidden;
 }
 
+.internal-provider-panel {
+  margin-bottom: 20px;
+}
+
+.internal-check-button {
+  padding: 8px 11px;
+  border: 1px solid #d8dce5;
+  border-radius: 9px;
+  background: white;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.internal-check-button:hover {
+  border-color: #b7b0ee;
+  color: #5f51d7;
+}
+
+.internal-provider-grid {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.internal-provider-grid article {
+  min-width: 0;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #eaecf0;
+  border-radius: 12px;
+  background: #fbfbfd;
+}
+
+.internal-provider-grid article > div {
+  min-width: 0;
+}
+
+.internal-provider-grid strong,
+.internal-provider-grid small {
+  display: block;
+}
+
+.internal-provider-grid strong {
+  color: #1d2939;
+  font-size: 13px;
+}
+
+.internal-provider-grid small {
+  margin-top: 3px;
+  color: #98a2b3;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.internal-provider-status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.internal-provider-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #98a2b3;
+}
+
+.internal-provider-status.is-good {
+  color: #067647;
+}
+
+.internal-provider-status.is-good i {
+  background: #12b76a;
+}
+
+.internal-provider-status.is-warning {
+  color: #b54708;
+}
+
+.internal-provider-status.is-warning i {
+  background: #f79009;
+}
+
+.internal-provider-status.is-bad {
+  color: #b42318;
+}
+
+.internal-provider-status.is-bad i {
+  background: #f04438;
+}
+
+.internal-provider-footnote {
+  margin: 0;
+  padding: 12px 20px 16px;
+  border-top: 1px solid #eaecf0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .internal-panel-head {
   min-height: 78px;
   padding: 18px 20px;
@@ -555,6 +665,10 @@
   .internal-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .internal-provider-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
@@ -577,6 +691,10 @@
 
   .internal-stat-grid,
   .internal-lower-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .internal-provider-grid {
     grid-template-columns: 1fr;
   }
 

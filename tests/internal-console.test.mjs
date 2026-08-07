@@ -71,6 +71,7 @@ test("Console auth never returns Supabase bearer tokens to the browser", async (
   assert.match(internalAuth, /Set-Cookie/);
   assert.doesNotMatch(internalAuth, /Response\.json\(result/);
   assert.doesNotMatch(internalAuth, /user_metadata/);
+  assert.match(internalAuth, /The code is invalid or expired\./);
 });
 
 test("Console routes and pages are present but absent from public navigation", async () => {

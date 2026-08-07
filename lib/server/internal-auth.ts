@@ -115,7 +115,20 @@ export async function verifyInternalAdminCode(
     windowSeconds: 15 * 60,
   });
 
-  const result = await verifyEmailCodeValue(email, token);
+  let result: Record<string, unknown>;
+  try {
+    result = await verifyEmailCodeValue(email, token);
+  } catch (error) {
+    // Keep Supabase's provider-specific auth wording out of the browser. A
+    // rejected or expired code should look identical for every email; real
+    // provider outages remain visible so operators do not chase a bad code.
+    if (error instanceof ServiceError && error.status >= 500) throw error;
+    throw new ServiceError(
+      "The code is invalid or expired.",
+      400,
+      "invalid_code",
+    );
+  }
   const rawUser =
     result.user && typeof result.user === "object"
       ? (result.user as Record<string, unknown>)

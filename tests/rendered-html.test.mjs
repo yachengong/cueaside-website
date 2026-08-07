@@ -80,11 +80,62 @@ test("exposes the commercial API routes", async () => {
     "/api/ai/reply-check/route",
     "/api/ai/transcribe/route",
     "/api/ai/deepgram-token/route",
+    "/api/ai/realtime-token/route",
     "/api/auth/request-code/route",
     "/api/waitlist/route",
   ]) {
     assert.ok(route in manifest, `missing route ${route}`);
   }
+});
+
+test("guards every AI route with authentication, usage, and burst limits", async () => {
+  const routeNames = [
+    "answer",
+    "deepgram-token",
+    "realtime-token",
+    "reply-check",
+    "transcribe",
+  ];
+  const routes = await Promise.all(
+    routeNames.map((name) => source(`app/api/ai/${name}/route.ts`)),
+  );
+  for (const [index, route] of routes.entries()) {
+    assert.match(
+      route,
+      /const user = await requireUser\(request\)/,
+      `${routeNames[index]} must authenticate before provider access`,
+    );
+  }
+
+  const [openai, deepgram] = await Promise.all([
+    source("lib/server/openai.ts"),
+    source("lib/server/deepgram.ts"),
+  ]);
+
+  for (const scope of [
+    'scope: "answer"',
+    'scope: "transcription"',
+    'scope: "realtime-token"',
+    'scope: "reply-check"',
+  ]) {
+    assert.match(openai, new RegExp(scope));
+  }
+  for (const usageKind of [
+    'authorizeAI(user, "answerRequests")',
+    'authorizeAI(user, "transcriptionRequests")',
+    'authorizeAI(user, "realtimeTokens")',
+  ]) {
+    assert.match(openai, new RegExp(usageKind.replace(/[()]/g, "\\$&")));
+  }
+  assert.match(deepgram, /scope: "deepgram-token"/);
+  assert.match(deepgram, /recordUsage\(user\.id, "realtimeTokens"/);
+
+  const transcription = openai.slice(openai.indexOf("export async function proxyTranscription"));
+  const validatesFileAt = transcription.indexOf("file instanceof File");
+  const consumesUsageAt = transcription.indexOf(
+    'authorizeAI(user, "transcriptionRequests")',
+  );
+  assert.ok(validatesFileAt >= 0 && consumesUsageAt > validatesFileAt);
 });
 
 test("keeps the waitlist as the only conversion path", async () => {

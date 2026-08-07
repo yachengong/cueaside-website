@@ -12,6 +12,7 @@ export interface CueAsideRuntime {
   DEEPGRAM_API_KEY?: string;
   SAFETY_ID_SECRET?: string;
   BILLING_BYPASS_USER_IDS?: string;
+  CUEASIDE_ADMIN_USER_IDS?: string;
 }
 
 export function runtime(): CueAsideRuntime {

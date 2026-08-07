@@ -82,6 +82,9 @@ test("exposes the commercial API routes", async () => {
     "/api/ai/deepgram-token/route",
     "/api/ai/realtime-token/route",
     "/api/auth/request-code/route",
+    "/api/internal/auth/request-code/route",
+    "/api/internal/auth/verify-code/route",
+    "/api/internal/auth/logout/route",
     "/api/waitlist/route",
   ]) {
     assert.ok(route in manifest, `missing route ${route}`);

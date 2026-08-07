@@ -7,6 +7,7 @@ type ExternalOperation =
   | "realtime_token"
   | "deepgram_grant"
   | "storage_request"
+  | "auth_admin_request"
   | "auth_delete";
 
 /**

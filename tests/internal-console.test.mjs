@@ -1,0 +1,89 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+import {
+  hashInternalSessionToken,
+  internalSessionCookieHeader,
+  internalSessionTokenFromCookie,
+  parseInternalAdminUserIDs,
+} from "../lib/internal-console-policy.ts";
+
+const source = (name) =>
+  readFile(new URL(`../${name}`, import.meta.url), "utf8");
+
+test("Console admin allowlist accepts only valid Supabase user UUIDs", () => {
+  const first = "00000000-0000-4000-8000-000000000001";
+  const second = "ABCDEFAB-1234-4ABC-8DEF-ABCDEFABCDEF";
+  const ids = parseInternalAdminUserIDs(
+    `${first}, not-an-id, ${second}, ${first}`,
+  );
+  assert.deepEqual([...ids], [first, second.toLowerCase()]);
+});
+
+test("Console session cookie is opaque, host-only, and inaccessible to scripts", () => {
+  const token = "a".repeat(43);
+  const header = internalSessionCookieHeader(token, { production: true });
+  assert.match(header, /^__Host-cueaside-internal-session=/);
+  assert.match(header, /Path=\//);
+  assert.match(header, /HttpOnly/);
+  assert.match(header, /SameSite=Strict/);
+  assert.match(header, /Secure/);
+  assert.doesNotMatch(header, /Domain=/);
+  assert.equal(
+    internalSessionTokenFromCookie(`other=x; ${header}`, true),
+    token,
+  );
+  assert.match(
+    internalSessionCookieHeader("", { clear: true, production: true }),
+    /Max-Age=0/,
+  );
+});
+
+test("Console stores only a one-way session-token hash", async () => {
+  const token = "session_token_that_never_enters_the_database_123";
+  const hash = await hashInternalSessionToken(token);
+  assert.match(hash, /^[a-f0-9]{64}$/);
+  assert.notEqual(hash, token);
+  assert.equal(hash, await hashInternalSessionToken(token));
+});
+
+test("Console database tables are service-role-only and content-free", async () => {
+  const migration = await source(
+    "supabase/migrations/20260807072221_internal_console_foundation.sql",
+  );
+  assert.match(migration, /internal_admin_sessions/);
+  assert.match(migration, /internal_audit_log/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /revoke all[\s\S]*from public, anon, authenticated/);
+  assert.match(migration, /grant select, insert[\s\S]*to service_role/);
+  assert.doesNotMatch(migration, /jsonb|json|bytea/i);
+  assert.doesNotMatch(
+    migration,
+    /^\s*(transcript|audio|prompt|question|answer|content|message|context|resume|note)\w*\s+(text|jsonb|json|bytea)/im,
+  );
+});
+
+test("Console auth never returns Supabase bearer tokens to the browser", async () => {
+  const internalAuth = await source("lib/server/internal-auth.ts");
+  assert.match(internalAuth, /CUEASIDE_ADMIN_USER_IDS/);
+  assert.match(internalAuth, /createInternalAdminSession/);
+  assert.match(internalAuth, /Set-Cookie/);
+  assert.doesNotMatch(internalAuth, /Response\.json\(result/);
+  assert.doesNotMatch(internalAuth, /user_metadata/);
+});
+
+test("Console routes and pages are present but absent from public navigation", async () => {
+  const [home, layout, consoleLayout, nextConfig] = await Promise.all([
+    source("app/page.tsx"),
+    source("app/layout.tsx"),
+    source("app/internal/layout.tsx"),
+    source("next.config.ts"),
+  ]);
+  assert.doesNotMatch(home, /href=["']\/internal/);
+  assert.doesNotMatch(layout, /href=["']\/internal/);
+  assert.match(consoleLayout, /index: false/);
+  assert.match(consoleLayout, /noarchive: true/);
+  assert.match(nextConfig, /source: "\/internal\/:path\*"/);
+  assert.match(nextConfig, /noindex, nofollow, noarchive/);
+});

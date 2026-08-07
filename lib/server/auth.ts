@@ -126,6 +126,29 @@ async function supabaseJSON(
   return payload;
 }
 
+/**
+ * Server-side OTP helpers used by the private Console. They never persist a
+ * Supabase access or refresh token in the browser; callers exchange the OTP,
+ * verify the returned user id against a server allowlist, then create an
+ * independent opaque Console session.
+ */
+export async function requestExistingEmailCode(email: string): Promise<void> {
+  await supabaseJSON("/auth/v1/otp", {
+    method: "POST",
+    body: JSON.stringify({ email, create_user: false }),
+  });
+}
+
+export async function verifyEmailCodeValue(
+  email: string,
+  token: string,
+): Promise<Record<string, unknown>> {
+  return supabaseJSON("/auth/v1/verify", {
+    method: "POST",
+    body: JSON.stringify({ type: "email", email, token }),
+  });
+}
+
 export async function requestEmailCode(request: Request): Promise<Response> {
   const body = await readJSON<{ email?: string }>(request, 8_000);
   const email = body.email?.trim().toLowerCase() ?? "";

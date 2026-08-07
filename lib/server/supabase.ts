@@ -23,6 +23,46 @@ export interface MonthlyUsageRow {
   updated_at: number;
 }
 
+export interface InternalAdminSessionRow {
+  token_hash: string;
+  admin_user_id: string;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+export interface InternalAuthUser {
+  id: string;
+  email: string | null;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+  confirmedAt: string | null;
+}
+
+export interface InternalAuthUserPage {
+  users: InternalAuthUser[];
+  page: number;
+  perPage: number;
+  total: number;
+}
+
+export interface InternalAccountRow {
+  user_id: string;
+  email: string | null;
+  subscription_status: string;
+  current_period_end: number | null;
+  cancel_at_period_end: boolean;
+  updated_at: number;
+}
+
+export interface InternalAuditRow {
+  id: number;
+  admin_user_id: string | null;
+  action: string;
+  target_user_id: string | null;
+  occurred_at: string;
+}
+
 function adminURL(path: string): string {
   return `${requireRuntimeValue(
     "SUPABASE_URL",
@@ -65,6 +105,171 @@ async function adminRequest<T>(
     );
   }
   return (text ? JSON.parse(text) : null) as T;
+}
+
+function authAdminURL(path: string): string {
+  return `${requireRuntimeValue(
+    "SUPABASE_URL",
+    "Account storage is not configured yet.",
+  ).replace(/\/+$/, "")}/auth/v1/admin/${path.replace(/^\/+/, "")}`;
+}
+
+async function authAdminRequest<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await observeExternalCall(
+    { service: "supabase", operation: "auth_admin_request" },
+    () => fetch(authAdminURL(path), {
+      ...init,
+      headers: adminHeaders(init.headers),
+      cache: "no-store",
+    }),
+  );
+  const text = await response.text();
+  if (!response.ok) {
+    throw new ServiceError(
+      "Account directory is temporarily unavailable.",
+      503,
+      "account_directory_unavailable",
+    );
+  }
+  return (text ? JSON.parse(text) : null) as T;
+}
+
+export async function createInternalAdminSession(input: {
+  tokenHash: string;
+  adminUserId: string;
+  expiresAt: string;
+}): Promise<void> {
+  await adminRequest("internal_admin_sessions", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      token_hash: input.tokenHash,
+      admin_user_id: input.adminUserId,
+      expires_at: input.expiresAt,
+    }),
+  });
+}
+
+export async function internalAdminSessionFor(
+  tokenHash: string,
+): Promise<InternalAdminSessionRow | null> {
+  const now = encodeURIComponent(new Date().toISOString());
+  const rows = await adminRequest<InternalAdminSessionRow[]>(
+    `internal_admin_sessions?token_hash=eq.${encodeURIComponent(
+      tokenHash,
+    )}&revoked_at=is.null&expires_at=gt.${now}&select=*&limit=1`,
+  );
+  return rows[0] ?? null;
+}
+
+export async function revokeInternalAdminSession(
+  tokenHash: string,
+): Promise<void> {
+  await adminRequest(
+    `internal_admin_sessions?token_hash=eq.${encodeURIComponent(tokenHash)}`,
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ revoked_at: new Date().toISOString() }),
+    },
+  );
+}
+
+export async function insertInternalAuditEvent(input: {
+  adminUserId: string | null;
+  action: string;
+  targetUserId?: string | null;
+  pageNumber?: number | null;
+}): Promise<void> {
+  await adminRequest("internal_audit_log", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      admin_user_id: input.adminUserId,
+      action: input.action,
+      target_user_id: input.targetUserId ?? null,
+      page_number: input.pageNumber ?? null,
+    }),
+  });
+}
+
+export async function listInternalAuthUsers(input: {
+  page: number;
+  perPage: number;
+}): Promise<InternalAuthUserPage> {
+  const page = Math.max(1, Math.floor(input.page));
+  const perPage = Math.min(100, Math.max(1, Math.floor(input.perPage)));
+  const payload = await authAdminRequest<{
+    users?: Array<Record<string, unknown>>;
+    total?: number;
+  }>(`users?page=${page}&per_page=${perPage}`);
+  const rawUsers = Array.isArray(payload.users) ? payload.users : [];
+  const users = rawUsers.flatMap((row): InternalAuthUser[] => {
+    const id = typeof row.id === "string" ? row.id : "";
+    if (!id) return [];
+    return [{
+      id,
+      email: typeof row.email === "string" ? row.email : null,
+      createdAt: typeof row.created_at === "string" ? row.created_at : null,
+      lastSignInAt:
+        typeof row.last_sign_in_at === "string" ? row.last_sign_in_at : null,
+      confirmedAt:
+        typeof row.confirmed_at === "string" ? row.confirmed_at : null,
+    }];
+  });
+  return {
+    users,
+    page,
+    perPage,
+    total:
+      typeof payload.total === "number" && Number.isFinite(payload.total)
+        ? Math.max(0, Math.floor(payload.total))
+        : (page - 1) * perPage + users.length,
+  };
+}
+
+function inUUIDFilter(userIds: string[]): string | null {
+  const valid = userIds.filter((id) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      .test(id),
+  );
+  return valid.length > 0 ? `in.(${valid.join(",")})` : null;
+}
+
+export async function internalAccountsFor(
+  userIds: string[],
+): Promise<InternalAccountRow[]> {
+  const filter = inUUIDFilter(userIds);
+  if (!filter) return [];
+  return adminRequest<InternalAccountRow[]>(
+    `billing_accounts?user_id=${filter}&select=user_id,email,subscription_status,current_period_end,cancel_at_period_end,updated_at`,
+  );
+}
+
+export async function internalMonthlyUsageFor(
+  userIds: string[],
+): Promise<MonthlyUsageRow[]> {
+  const filter = inUUIDFilter(userIds);
+  if (!filter) return [];
+  const now = new Date();
+  const periodStart = `${now.getUTCFullYear()}-${String(
+    now.getUTCMonth() + 1,
+  ).padStart(2, "0")}-01`;
+  return adminRequest<MonthlyUsageRow[]>(
+    `usage_monthly?user_id=${filter}&period_start=eq.${periodStart}&select=*`,
+  );
+}
+
+export async function recentInternalAuditEvents(
+  limit = 20,
+): Promise<InternalAuditRow[]> {
+  const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+  return adminRequest<InternalAuditRow[]>(
+    `internal_audit_log?select=id,admin_user_id,action,target_user_id,occurred_at&order=occurred_at.desc&limit=${safeLimit}`,
+  );
 }
 
 export async function billingAccountFor(

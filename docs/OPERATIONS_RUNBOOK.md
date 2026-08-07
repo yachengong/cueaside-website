@@ -23,8 +23,18 @@ as `status: 0`; an HTTP provider failure uses its numeric status.
 
 The scheduled smoke records only the check label, HTTP status, duration, and
 attempt count. It verifies the homepage, public health, unauthenticated AI
-rejection, and unauthenticated Console redirect. Keep GitHub Actions failure
-notifications enabled for the repository owner.
+rejection, and unauthenticated Console redirect. When the repository secret
+`CUEASIDE_HEALTH_PROBE_TOKEN` is configured, it also calls the private health
+probe and requires Supabase Auth, Supabase Admin, Stripe, the Stripe webhook,
+OpenAI, and Deepgram to be reachable. It also requires the production Stripe
+Price to be active, monthly, and in live mode. Without that secret, the deep
+probe is explicitly skipped while the public checks continue.
+
+Set `CUEASIDE_HEALTH_PROBE_TOKEN` to the same value as the Production-only
+Vercel `HEALTH_PROBE_TOKEN`. Add it as a GitHub Actions repository secret only
+after the live provider credentials and Stripe Price are ready. Never print,
+paste into workflow YAML, or expose this value to pull requests. Keep GitHub
+Actions failure notifications enabled for the repository owner.
 
 ## Suggested alerts
 

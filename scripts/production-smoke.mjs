@@ -3,6 +3,14 @@ import { pathToFileURL } from "node:url";
 const DEFAULT_BASE_URL = "https://cueaside.com";
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 const REQUIRED_SERVICES = ["auth", "billing", "ai", "storage"];
+const REQUIRED_LIVE_PROVIDERS = [
+  "supabaseAuth",
+  "supabaseAdmin",
+  "stripe",
+  "stripeWebhook",
+  "openai",
+  "deepgram",
+];
 
 export function normalizeProductionBase(value) {
   const url = new URL(value || DEFAULT_BASE_URL);
@@ -83,6 +91,7 @@ function checkLocation(response, expectedPath) {
 
 export async function runProductionSmoke({
   baseURL = DEFAULT_BASE_URL,
+  healthProbeToken = "",
   fetchImpl = fetch,
   sleepImpl = defaultSleep,
 } = {}) {
@@ -173,17 +182,63 @@ export async function runProductionSmoke({
     attempts: consoleBoundary.attempts,
   });
 
+  const privateProbeToken = healthProbeToken.trim();
+  if (privateProbeToken) {
+    const providerHealth = await requestWithRetry({
+      fetchImpl,
+      url: `${base}/api/health?probe=live`,
+      init: {
+        headers: { "x-health-token": privateProbeToken },
+      },
+      expectedStatuses: [200],
+      label: "live provider health",
+      sleepImpl,
+    });
+    const providerBody = await providerHealth.response.json().catch(() => null);
+    const unhealthyProviders = REQUIRED_LIVE_PROVIDERS.filter(
+      (provider) => providerBody?.live?.[provider]?.ok !== true,
+    );
+
+    if (providerBody?.ok !== true || unhealthyProviders.length > 0) {
+      const suffix = unhealthyProviders.length
+        ? `: ${unhealthyProviders.join(", ")}`
+        : "";
+      throw new Error(`Live provider health reported an unhealthy dependency${suffix}.`);
+    }
+    if (
+      providerBody.live.stripe.active !== true ||
+      providerBody.live.stripe.interval !== "month" ||
+      providerBody.live.stripe.livemode !== true
+    ) {
+      throw new Error("Live provider health found a non-production Stripe Price.");
+    }
+
+    checks.push({
+      label: "live provider health",
+      status: providerHealth.response.status,
+      durationMs: providerHealth.durationMs,
+      attempts: providerHealth.attempts,
+    });
+  }
+
   return checks;
 }
 
 async function main() {
+  const healthProbeToken = process.env.CUEASIDE_HEALTH_PROBE_TOKEN?.trim() ?? "";
   const checks = await runProductionSmoke({
     baseURL: process.env.CUEASIDE_PRODUCTION_URL || DEFAULT_BASE_URL,
+    healthProbeToken,
   });
   for (const check of checks) {
     console.log(
       `[ok] ${check.label}: ${check.status} in ${check.durationMs} ms`
-        + ` (${check.attempts} attempt${check.attempts === 1 ? "" : "s"})`,
+      + ` (${check.attempts} attempt${check.attempts === 1 ? "" : "s"})`,
+    );
+  }
+  if (!healthProbeToken) {
+    console.log(
+      "[skip] live provider health: CUEASIDE_HEALTH_PROBE_TOKEN is not configured",
     );
   }
 }

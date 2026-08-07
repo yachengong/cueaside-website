@@ -12,13 +12,38 @@ function json(body, status, headers = {}) {
   });
 }
 
-function successfulFetch() {
+function successfulFetch({ onRequest = () => {} } = {}) {
   return async (url, init = {}) => {
-    const path = new URL(url).pathname;
+    const parsedURL = new URL(url);
+    const path = parsedURL.pathname;
+    onRequest(parsedURL, init);
     if (path === "/") {
       return new Response("<html><title>CueAside</title></html>", { status: 200 });
     }
     if (path === "/api/health") {
+      if (parsedURL.searchParams.get("probe") === "live") {
+        return json(
+          {
+            ok: true,
+            live: {
+              checkedAt: "2026-08-07T12:00:00.000Z",
+              supabaseAuth: { ok: true, status: 200 },
+              supabaseAdmin: { ok: true, status: 200 },
+              stripe: {
+                ok: true,
+                status: 200,
+                active: true,
+                interval: "month",
+                livemode: true,
+              },
+              stripeWebhook: { ok: true, status: 200, configured: true },
+              openai: { ok: true, status: 200 },
+              deepgram: { ok: true, status: 200 },
+            },
+          },
+          200,
+        );
+      }
       return json(
         {
           ok: true,
@@ -62,6 +87,87 @@ test("verifies availability and both unauthenticated boundaries", async () => {
       "AI authentication boundary",
       "Console authentication boundary",
     ],
+  );
+});
+
+test("skips the private provider probe when no token is configured", async () => {
+  let privateProbeRequests = 0;
+  const checks = await runProductionSmoke({
+    fetchImpl: successfulFetch({
+      onRequest(url) {
+        if (url.searchParams.get("probe") === "live") privateProbeRequests += 1;
+      },
+    }),
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(privateProbeRequests, 0);
+  assert.equal(checks.some((check) => check.label === "live provider health"), false);
+});
+
+test("verifies all live providers with the private token without exposing it", async () => {
+  const token = "private-health-token-that-must-not-be-logged";
+  let receivedHeader = "";
+  const checks = await runProductionSmoke({
+    healthProbeToken: token,
+    fetchImpl: successfulFetch({
+      onRequest(url, init) {
+        if (url.searchParams.get("probe") === "live") {
+          receivedHeader = new Headers(init.headers).get("x-health-token") ?? "";
+        }
+      },
+    }),
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(receivedHeader, token);
+  assert.equal(checks.at(-1)?.label, "live provider health");
+  assert.equal(JSON.stringify(checks).includes(token), false);
+});
+
+test("fails when a live provider is unhealthy", async () => {
+  const baseFetch = successfulFetch();
+  const fetchImpl = async (url, init) => {
+    const parsedURL = new URL(url);
+    if (parsedURL.searchParams.get("probe") === "live") {
+      const response = await baseFetch(url, init);
+      const body = await response.json();
+      body.live.deepgram = { ok: false, status: 503 };
+      return json(body, 200);
+    }
+    return baseFetch(url, init);
+  };
+
+  await assert.rejects(
+    runProductionSmoke({
+      healthProbeToken: "private-health-token",
+      fetchImpl,
+      sleepImpl: async () => {},
+    }),
+    /unhealthy dependency: deepgram/,
+  );
+});
+
+test("fails when Stripe is not ready for production billing", async () => {
+  const baseFetch = successfulFetch();
+  const fetchImpl = async (url, init) => {
+    const parsedURL = new URL(url);
+    if (parsedURL.searchParams.get("probe") === "live") {
+      const response = await baseFetch(url, init);
+      const body = await response.json();
+      body.live.stripe.livemode = false;
+      return json(body, 200);
+    }
+    return baseFetch(url, init);
+  };
+
+  await assert.rejects(
+    runProductionSmoke({
+      healthProbeToken: "private-health-token",
+      fetchImpl,
+      sleepImpl: async () => {},
+    }),
+    /non-production Stripe Price/,
   );
 });
 

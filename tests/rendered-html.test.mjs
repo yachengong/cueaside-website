@@ -77,7 +77,9 @@ test("exposes the commercial API routes", async () => {
     "/api/billing/webhook/route",
     "/api/billing/checkout/route",
     "/api/ai/answer/route",
+    "/api/ai/reply-check/route",
     "/api/ai/transcribe/route",
+    "/api/ai/deepgram-token/route",
     "/api/auth/request-code/route",
     "/api/waitlist/route",
   ]) {

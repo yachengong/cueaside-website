@@ -139,7 +139,7 @@ test("Console displays only content-free answer performance fields", async () =>
   assert.match(page, /Answer performance/);
   assert.match(page, /First readable p95/);
   assert.match(page, /Estimated cost/);
-  assert.match(page, /recentInternalAnswerMetrics/);
+  assert.match(page, /internalAnswerMetricsPage/);
   assert.match(page, /Retained for 30 days/);
   assert.match(storage, /recordAnswerGenerationMetric/);
   assert.match(storage, /adminRequest\("answer_generation_metrics"/);
@@ -165,6 +165,38 @@ test("Console displays only content-free answer performance fields", async () =>
     metricStorage,
     /question|answerText|prompt|transcript|context|session_id/i,
   );
+});
+
+test("Console metrics use allowlisted filters, exact pagination, retention, and audit", async () => {
+  const [page, storage, retention] = await Promise.all([
+    source("app/internal/page.tsx"),
+    source("lib/server/supabase.ts"),
+    source("supabase/migrations/20260807143000_internal_console_retention.sql"),
+  ]);
+
+  assert.match(page, /METRIC_MODELS/);
+  assert.match(page, /allowedValue\(params\.model, METRIC_MODELS\)/);
+  assert.match(page, /allowedValue\(params\.depth, METRIC_DEPTHS\)/);
+  assert.match(page, /allowedValue\(params\.status, METRIC_STATUSES\)/);
+  assert.match(page, /name="hours"/);
+  assert.match(page, /name="model"/);
+  assert.match(page, /name="depth"/);
+  assert.match(page, /name="status"/);
+  assert.match(page, /answer_metrics_viewed/);
+  assert.match(page, /Page \{metricsPage\} of \{metricPageCount\}/);
+  assert.match(page, /page > pageCount \|\| metricsPage > metricPageCount/);
+  assert.match(storage, /Prefer: "count=exact"/);
+  assert.match(storage, /"Range-Unit": "items"/);
+  assert.match(storage, /query\.set\("model", `eq\.\$\{input\.model\}`\)/);
+  assert.match(storage, /query\.set\("depth", `eq\.\$\{input\.depth\}`\)/);
+  assert.match(storage, /query\.set\("status", `eq\.\$\{input\.status\}`\)/);
+  assert.match(retention, /security invoker/i);
+  assert.doesNotMatch(retention, /security definer/i);
+  assert.match(retention, /expires_at < now\(\) - interval '7 days'/);
+  assert.match(retention, /occurred_at < now\(\) - interval '90 days'/);
+  assert.match(retention, /grant delete[\s\S]*to service_role/);
+  assert.match(retention, /answer_generation_metrics_recorded_id_idx/);
+  assert.match(retention, /revoke all[\s\S]*from public, anon, authenticated/);
 });
 
 test("Console inspects every monthly usage counter and subscription lifecycle", async () => {

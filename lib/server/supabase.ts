@@ -94,6 +94,13 @@ export interface InternalAnswerMetricRow {
   pricing_version: string;
 }
 
+export interface InternalAnswerMetricPage {
+  rows: InternalAnswerMetricRow[];
+  page: number;
+  perPage: number;
+  total: number;
+}
+
 function adminURL(path: string): string {
   return `${requireRuntimeValue(
     "SUPABASE_URL",
@@ -136,6 +143,55 @@ async function adminRequest<T>(
     );
   }
   return (text ? JSON.parse(text) : null) as T;
+}
+
+async function adminPageRequest<T>(
+  path: string,
+  input: { page: number; perPage: number },
+): Promise<{ rows: T[]; page: number; perPage: number; total: number }> {
+  const page = Math.max(1, Math.floor(input.page));
+  const perPage = Math.min(1_000, Math.max(1, Math.floor(input.perPage)));
+  const first = (page - 1) * perPage;
+  const last = first + perPage - 1;
+  const response = await observeExternalCall(
+    { service: "supabase", operation: "storage_request" },
+    () => fetch(adminURL(path), {
+      headers: adminHeaders({
+        Prefer: "count=exact",
+        Range: `${first}-${last}`,
+        "Range-Unit": "items",
+      }),
+      cache: "no-store",
+    }),
+  );
+  const text = await response.text();
+  const totalMatch = response.headers.get("content-range")?.match(/\/(\d+)$/);
+  const total = totalMatch
+    ? Number.parseInt(totalMatch[1], 10)
+    : first;
+  // PostgREST returns 416 when a valid page starts beyond the final row. That
+  // is an empty page, not a storage outage; preserve the exact total so the UI
+  // can offer navigation back into range.
+  if (response.status === 416 && totalMatch) {
+    return { rows: [], page, perPage, total };
+  }
+  if (!response.ok) {
+    throw new ServiceError(
+      "Account storage is temporarily unavailable.",
+      503,
+      "storage_unavailable",
+    );
+  }
+  const rows = (text ? JSON.parse(text) : []) as T[];
+  const resolvedTotal = totalMatch ? total : first + rows.length;
+  return {
+    rows,
+    page,
+    perPage,
+    total: Number.isFinite(resolvedTotal)
+      ? Math.max(0, resolvedTotal)
+      : first + rows.length,
+  };
 }
 
 function authAdminURL(path: string): string {
@@ -329,12 +385,17 @@ export async function recordAnswerGenerationMetric(
   });
 }
 
-export async function recentInternalAnswerMetrics(input: {
+export async function internalAnswerMetricsPage(input: {
   hours?: number;
-  limit?: number;
-} = {}): Promise<InternalAnswerMetricRow[]> {
+  page?: number;
+  perPage?: number;
+  model?: InternalAnswerMetricRow["model"];
+  depth?: InternalAnswerMetricRow["depth"];
+  status?: InternalAnswerMetricRow["status"];
+} = {}): Promise<InternalAnswerMetricPage> {
   const hours = Math.min(24 * 30, Math.max(1, Math.floor(input.hours ?? 24)));
-  const limit = Math.min(1_000, Math.max(1, Math.floor(input.limit ?? 500)));
+  const page = Math.max(1, Math.floor(input.page ?? 1));
+  const perPage = Math.min(1_000, Math.max(1, Math.floor(input.perPage ?? 20)));
   const cutoff = new Date(Date.now() - hours * 60 * 60 * 1_000).toISOString();
   const columns = [
     "id",
@@ -355,10 +416,17 @@ export async function recentInternalAnswerMetrics(input: {
     "estimated_cost_micro_usd",
     "pricing_version",
   ].join(",");
-  return adminRequest<InternalAnswerMetricRow[]>(
-    `answer_generation_metrics?recorded_at=gte.${encodeURIComponent(
-      cutoff,
-    )}&select=${columns}&order=recorded_at.desc&limit=${limit}`,
+  const query = new URLSearchParams({
+    recorded_at: `gte.${cutoff}`,
+    select: columns,
+    order: "recorded_at.desc,id.desc",
+  });
+  if (input.model) query.set("model", `eq.${input.model}`);
+  if (input.depth) query.set("depth", `eq.${input.depth}`);
+  if (input.status) query.set("status", `eq.${input.status}`);
+  return adminPageRequest<InternalAnswerMetricRow>(
+    `answer_generation_metrics?${query.toString()}`,
+    { page, perPage },
   );
 }
 

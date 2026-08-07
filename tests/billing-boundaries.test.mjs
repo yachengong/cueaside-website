@@ -157,9 +157,17 @@ test(
         ),
         "utf8",
       );
+      const consoleRetentionMigration = await readFile(
+        new URL(
+          "../supabase/migrations/20260807143000_internal_console_retention.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
       await pool.query(consoleFoundation);
       await pool.query(consoleTargetIndex);
       await pool.query(answerMetricsMigration);
+      await pool.query(consoleRetentionMigration);
 
       const consolePrivileges = await pool.query(`
         select
@@ -223,6 +231,11 @@ test(
             'public.internal_audit_log',
             'INSERT'
           ) as service_audit_insert,
+          has_table_privilege(
+            'service_role',
+            'public.internal_audit_log',
+            'DELETE'
+          ) as service_audit_delete,
           has_sequence_privilege(
             'service_role',
             'public.internal_audit_log_id_seq',
@@ -297,7 +310,22 @@ test(
             'service_role',
             'private.prune_answer_generation_metrics()',
             'EXECUTE'
-          ) as service_metrics_execute
+          ) as service_metrics_execute,
+          has_function_privilege(
+            'anon',
+            'private.prune_internal_console_records()',
+            'EXECUTE'
+          ) as anon_console_retention_execute,
+          has_function_privilege(
+            'authenticated',
+            'private.prune_internal_console_records()',
+            'EXECUTE'
+          ) as authenticated_console_retention_execute,
+          has_function_privilege(
+            'service_role',
+            'private.prune_internal_console_records()',
+            'EXECUTE'
+          ) as service_console_retention_execute
       `);
       assert.deepEqual(consolePrivileges.rows[0], {
         sessions_rls: true,
@@ -312,6 +340,7 @@ test(
         service_sessions_delete: true,
         service_audit_select: true,
         service_audit_insert: true,
+        service_audit_delete: true,
         service_audit_sequence_usage: true,
         metrics_rls: true,
         anon_metrics_select: false,
@@ -327,6 +356,9 @@ test(
         anon_metrics_execute: false,
         authenticated_metrics_execute: false,
         service_metrics_execute: true,
+        anon_console_retention_execute: false,
+        authenticated_console_retention_execute: false,
+        service_console_retention_execute: true,
       });
 
       const consolePolicies = await pool.query(`
@@ -354,13 +386,20 @@ test(
       `);
       assert.deepEqual(contentColumns.rows, []);
 
-      const targetIndex = await pool.query(`
+      const consoleIndexes = await pool.query(`
         select indexname
         from pg_indexes
         where schemaname = 'public'
-          and indexname = 'internal_audit_log_target_occurred_idx'
+          and indexname in (
+            'internal_audit_log_target_occurred_idx',
+            'answer_generation_metrics_recorded_id_idx'
+          )
+        order by indexname
       `);
-      assert.equal(targetIndex.rowCount, 1);
+      assert.deepEqual(consoleIndexes.rows, [
+        { indexname: "answer_generation_metrics_recorded_id_idx" },
+        { indexname: "internal_audit_log_target_occurred_idx" },
+      ]);
 
       await pool.query(
         `insert into public.answer_generation_metrics (
@@ -514,6 +553,55 @@ test(
       );
 
       const adminId = userId(1);
+      await pool.query(
+        `insert into public.internal_admin_sessions
+          (token_hash, admin_user_id, created_at, expires_at)
+         values (
+           $1,
+           $2::uuid,
+           now() - interval '10 days',
+           now() - interval '9 days'
+         )`,
+        ["c".repeat(64), adminId],
+      );
+      await pool.query(
+        `insert into public.internal_audit_log
+          (admin_user_id, action, page_number, occurred_at)
+         values (
+           $1::uuid,
+           'console_viewed',
+           1,
+           now() - interval '91 days'
+         )`,
+        [adminId],
+      );
+      await pool.query("begin");
+      try {
+        await pool.query("set local role service_role");
+        await pool.query(
+          `insert into public.internal_audit_log
+            (admin_user_id, action, page_number)
+           values ($1::uuid, 'answer_metrics_viewed', 1)`,
+          [adminId],
+        );
+        await pool.query("commit");
+      } catch (error) {
+        await pool.query("rollback");
+        throw error;
+      }
+      const retainedConsoleRecords = await pool.query(`
+        select
+          (select count(*)::integer
+             from public.internal_admin_sessions
+            where token_hash = '${"c".repeat(64)}') as old_sessions,
+          (select count(*)::integer
+             from public.internal_audit_log
+            where occurred_at < now() - interval '90 days') as old_audit
+      `);
+      assert.deepEqual(retainedConsoleRecords.rows[0], {
+        old_sessions: 0,
+        old_audit: 0,
+      });
       await pool.query(
         `insert into public.internal_admin_sessions
           (token_hash, admin_user_id, expires_at)

@@ -174,7 +174,11 @@ test("does not expose an unsigned private-beta download path", async () => {
 });
 
 test("static publishing uses the same stable webpack build path as production", async () => {
-  const script = await source("scripts/build-pages.mjs");
+  const [script, packageJSON] = await Promise.all([
+    source("scripts/build-pages.mjs"),
+    source("package.json"),
+  ]);
+  assert.match(packageJSON, /"build": "next build --webpack"/);
   assert.match(script, /"build",\s*"--webpack"/);
   assert.match(script, /rm\(new URL\("\.\.\/\.next\/"/);
   assert.match(script, /app\/api/);

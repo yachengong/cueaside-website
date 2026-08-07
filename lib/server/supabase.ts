@@ -1,4 +1,5 @@
 import { ServiceError, requireRuntimeValue } from "./runtime";
+import { observeExternalCall } from "./observability";
 
 export interface BillingAccountRow {
   user_id: string;
@@ -47,14 +48,16 @@ async function adminRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(adminURL(path), {
-    ...init,
-    headers: adminHeaders(init.headers),
-    cache: "no-store",
-  });
+  const response = await observeExternalCall(
+    { service: "supabase", operation: "storage_request" },
+    () => fetch(adminURL(path), {
+      ...init,
+      headers: adminHeaders(init.headers),
+      cache: "no-store",
+    }),
+  );
   const text = await response.text();
   if (!response.ok) {
-    console.error("Supabase storage error", response.status, text.slice(0, 800));
     throw new ServiceError(
       "Account storage is temporarily unavailable.",
       503,
@@ -178,18 +181,20 @@ export async function deleteAuthUser(userId: string): Promise<void> {
     "SUPABASE_URL",
     "Account storage is not configured yet.",
   ).replace(/\/+$/, "");
-  const response = await fetch(
-    `${base}/auth/v1/admin/users/${encodeURIComponent(userId)}`,
-    {
-      method: "DELETE",
-      headers: adminHeaders(),
-      cache: "no-store",
-    },
+  const response = await observeExternalCall(
+    { service: "supabase", operation: "auth_delete" },
+    () => fetch(
+      `${base}/auth/v1/admin/users/${encodeURIComponent(userId)}`,
+      {
+        method: "DELETE",
+        headers: adminHeaders(),
+        cache: "no-store",
+      },
+    ),
   );
   // 404 means the auth user is already gone — deletion must be idempotent.
   if (!response.ok && response.status !== 404) {
-    const text = await response.text();
-    console.error("Supabase auth delete error", response.status, text.slice(0, 400));
+    await response.body?.cancel();
     throw new ServiceError(
       "Account deletion is temporarily unavailable.",
       503,

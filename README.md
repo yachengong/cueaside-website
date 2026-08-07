@@ -33,3 +33,7 @@ Create the Supabase tables and atomic usage functions by applying
 `supabase/migrations/202607290001_cueaside_commercial.sql`, then configure the
 variables listed in `.env.example` in Vercel. The service-role, OpenAI, and
 Deepgram keys must remain server-only.
+
+Production response and rollback procedures are in
+[`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md). The runbook forbids
+conversation content and raw provider responses from logs or incident notes.

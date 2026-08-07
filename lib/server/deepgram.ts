@@ -32,7 +32,11 @@ export async function createDeepgramToken(
       )}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ ttl_seconds: 60 }),
+    // The macOS client caches this usage-only JWT for four minutes. Deepgram
+    // requires it only during each WebSocket handshake, so one metered grant
+    // can safely cover several short speech segments without exposing the
+    // long-lived provider key.
+    body: JSON.stringify({ ttl_seconds: 5 * 60 }),
     cache: "no-store",
     signal: AbortSignal.timeout(8_000),
   });

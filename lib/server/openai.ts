@@ -124,6 +124,12 @@ export async function proxyAnswer(
     4_000,
   );
 
+  await enforceAccountRateLimit({
+    scope: "answer",
+    subject: user.id,
+    maximum: 30,
+    windowSeconds: 5 * 60,
+  });
   await authorizeAI(user, "answerRequests");
   const upstream = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -397,7 +403,6 @@ export async function proxyTranscription(
       "audio_too_large",
     );
   }
-  await authorizeAI(user, "transcriptionRequests");
 
   const incoming = await request.formData();
   const file = incoming.get("file");
@@ -428,6 +433,17 @@ export async function proxyTranscription(
   if (/^[a-z]{2,3}(-[A-Z]{2})?$/.test(language)) {
     outgoing.set("language", language.split("-")[0]);
   }
+
+  // Reject malformed audio before consuming the user's monthly allowance.
+  // Once validation passes, reserve usage before calling the provider so an
+  // upstream failure cannot be retried indefinitely without accounting.
+  await enforceAccountRateLimit({
+    scope: "transcription",
+    subject: user.id,
+    maximum: 60,
+    windowSeconds: 5 * 60,
+  });
+  await authorizeAI(user, "transcriptionRequests");
 
   const upstream = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
@@ -470,6 +486,12 @@ export async function createRealtimeToken(
     request,
     8_000,
   );
+  await enforceAccountRateLimit({
+    scope: "realtime-token",
+    subject: user.id,
+    maximum: 60,
+    windowSeconds: 5 * 60,
+  });
   await authorizeAI(user, "realtimeTokens");
 
   const transcription: Record<string, unknown> = {

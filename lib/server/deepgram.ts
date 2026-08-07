@@ -13,15 +13,15 @@ export async function createDeepgramToken(
   user: CueAsideUser,
 ): Promise<Response> {
   const entitlement = await requireEntitlement(user.id);
-  if (!entitlement.bypass) {
-    await recordUsage(user.id, "realtimeTokens", entitlement.plan);
-  }
   await enforceAccountRateLimit({
     scope: "deepgram-token",
     subject: user.id,
     maximum: 40,
     windowSeconds: 5 * 60,
   });
+  if (!entitlement.bypass) {
+    await recordUsage(user.id, "realtimeTokens", entitlement.plan);
+  }
 
   const upstream = await fetch("https://api.deepgram.com/v1/auth/grant", {
     method: "POST",

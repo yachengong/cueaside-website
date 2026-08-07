@@ -32,7 +32,7 @@ export default function PrivacyPolicy() {
           Privacy Policy
         </div>
         <h1>Your conversations are the product — not our data.</h1>
-        <p className="legal-updated">Last updated: July 30, 2026</p>
+        <p className="legal-updated">Last updated: August 7, 2026</p>
 
         <section>
           <h2>The short version</h2>
@@ -94,6 +94,15 @@ export default function PrivacyPolicy() {
             pseudonymized keys derived from network information; we do not keep
             raw IP addresses in these records.
           </p>
+          <p>
+            <strong>Crash diagnostics.</strong> When crash reporting is enabled
+            in a distributed app, we collect the app version, operating-system
+            and device class, crash stack, a closed error code, and bounded
+            numeric status values. We exclude account and session identifiers,
+            screenshots, view hierarchy, network requests, local paths, audio,
+            transcripts, questions, answers, prompts, prepared context, and
+            saved session content.
+          </p>
         </section>
 
         <section>
@@ -138,6 +147,10 @@ export default function PrivacyPolicy() {
             </li>
             <li>
               <strong>Vercel</strong> — website and API hosting.
+            </li>
+            <li>
+              <strong>Sentry</strong> — privacy-limited crash and error
+              diagnostics.
             </li>
           </ul>
           <p>

@@ -56,10 +56,12 @@ ad-hoc DMG; CueAside has no unsigned private-beta release path.
 
 ## 4. Third-party monitoring accounts
 
-- Sentry: create org + two projects (macOS, Next.js). The website side is
+- Sentry: create org + separate macOS and Next.js projects. The website side is
   already wired — paste the DSN into Vercel as `SENTRY_DSN` and
-  `NEXT_PUBLIC_SENTRY_DSN` and it starts reporting. Keep the macOS DSN for
-  the future native crash reporter; never commit either DSN to Git.
+  `NEXT_PUBLIC_SENTRY_DSN`. The macOS reporter is also wired but remains inert
+  until `CUEASIDE_SENTRY_DSN` is supplied as a local/CI build setting. Never
+  commit a DSN. Enable Prevent Storing IP Addresses, keep content capture off,
+  upload the release dSYM, and verify one symbolicated test crash before launch.
 - Better Stack (or UptimeRobot): monitors for `https://cueaside.com` and
   `https://cueaside.com/api/health`.
 - OpenAI: put CueAside in its own Project; set spend alerts at 50/75/90%
@@ -90,6 +92,8 @@ ad-hoc DMG; CueAside has no unsigned private-beta release path.
 - `DELETE /api/account`: self-serve deletion — cancels the Stripe
   subscription, drops billing/usage rows, deletes the auth identity.
 - Sentry wired for server, edge and browser; inert until a DSN is set.
+- Privacy-safe Sentry crash/error reporting wired in the macOS app; inert until
+  a build-time DSN is supplied.
 - Vercel Web Analytics component in the layout (activate via the toggle).
 - Vercel Speed Insights component in the layout (activate via the toggle).
 - The private Console labels Production, Preview, and Development explicitly;

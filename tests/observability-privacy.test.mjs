@@ -59,6 +59,33 @@ test("external-call telemetry has a closed content-free schema", async () => {
   }
 });
 
+test("answer metrics contain timing, usage, and cost but no conversation text", async () => {
+  const source = await readFile(
+    new URL("../lib/server/answer-metrics.ts", import.meta.url),
+    "utf8",
+  );
+  for (const field of [
+    "model",
+    "depth",
+    "reasoningEffort",
+    "serviceTier",
+    "firstReadableMs",
+    "durationMs",
+    "inputTokens",
+    "cachedInputTokens",
+    "outputTokens",
+    "reasoningTokens",
+    "estimatedCostMicroUSD",
+  ]) {
+    assert.match(source, new RegExp(`\\b${field}\\b`));
+  }
+  assert.match(source, /Delta text is checked only for non-whitespace/);
+  assert.doesNotMatch(
+    source,
+    /console\.(?:error|warn|log)\s*\([^)]*(?:delta|text|prompt|transcript|userId)/s,
+  );
+});
+
 test("Sentry strips request and conversation context before sending", async () => {
   const source = await readFile(
     new URL("../instrumentation.ts", import.meta.url),

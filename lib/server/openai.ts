@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { CueAsideUser } from "./auth";
+import { logAnswerMetric, observeAnswerStream } from "./answer-metrics";
 import { recordUsage, requireEntitlement, UsageKind } from "./billing";
 import {
   ServiceError,
@@ -136,6 +138,7 @@ export async function proxyAnswer(
     windowSeconds: 5 * 60,
   });
   await authorizeAI(user, "answerRequests");
+  const startedAt = Date.now();
   const upstream = await observeExternalCall(
     { service: "openai", operation: "answer" },
     async () => fetch("https://api.openai.com/v1/responses", {
@@ -165,7 +168,27 @@ export async function proxyAnswer(
     );
   }
 
-  return new Response(upstream.body, {
+  if (!upstream.body) {
+    throw new ServiceError(
+      "The answer service returned no stream.",
+      502,
+      "ai_upstream_error",
+    );
+  }
+
+  const observed = observeAnswerStream(upstream.body, {
+    model: profile.model,
+    depth,
+    reasoningEffort: profile.effort,
+    serviceTier: profile.serviceTier,
+    httpStatus: upstream.status,
+    startedAt,
+  });
+  after(async () => {
+    logAnswerMetric(await observed.completion);
+  });
+
+  return new Response(observed.body, {
     status: upstream.status,
     headers: {
       "Content-Type":

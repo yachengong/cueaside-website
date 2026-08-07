@@ -13,6 +13,8 @@ In Vercel → Project → Settings → Environment Variables, set for
 - `STRIPE_SECRET_KEY` (sk_live_…), `STRIPE_PRICE_ID` (price_…),
   `STRIPE_WEBHOOK_SECRET` (whsec_…)
 - `OPENAI_API_KEY`
+- `DEEPGRAM_API_KEY` (Member permission or higher; used only to grant
+  short-lived Nova-3 tokens)
 - `HEALTH_PROBE_TOKEN` (any long random string; enables deep health checks)
 
 Verify — keys never leave your machine:

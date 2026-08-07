@@ -12,8 +12,9 @@ export const dynamic = "force-dynamic";
  *   calls, no secrets echoed.
  *
  * GET /api/health?probe=live  (header: x-health-token: $HEALTH_PROBE_TOKEN)
- *   Actually calls Supabase, Stripe and OpenAI with the configured keys and
- *   reports per-service reachability, plus whether Stripe is in live mode.
+ *   Actually calls Supabase, Stripe, OpenAI and Deepgram with the configured
+ *   keys and reports per-service reachability, plus whether Stripe is in live
+ *   mode.
  *   Token-gated so the public endpoint can't be used to make us hammer
  *   upstream APIs.
  */
@@ -68,6 +69,11 @@ function shapeChecks(env: ReturnType<typeof runtime>) {
       (v) => v.startsWith("sk-"),
       "expected sk-…",
     ),
+    DEEPGRAM_API_KEY: shaped(
+      env.DEEPGRAM_API_KEY,
+      (v) => v.length >= 24 && !/replace_me/i.test(v),
+      "expected a Deepgram project API key",
+    ),
   };
 }
 
@@ -93,7 +99,7 @@ async function probe(
 async function liveProbes(env: ReturnType<typeof runtime>) {
   const supabaseBase = (env.SUPABASE_URL ?? "").replace(/\/+$/, "");
 
-  const [supabaseAuth, supabaseAdmin, stripe, openai] = await Promise.all([
+  const [supabaseAuth, supabaseAdmin, stripe, openai, deepgram] = await Promise.all([
     probe(`${supabaseBase}/auth/v1/health`, {
       headers: { apikey: env.SUPABASE_ANON_KEY ?? "" },
     }),
@@ -135,9 +141,17 @@ async function liveProbes(env: ReturnType<typeof runtime>) {
     probe("https://api.openai.com/v1/models?limit=1", {
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY ?? ""}` },
     }),
+    probe("https://api.deepgram.com/v1/auth/grant", {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${env.DEEPGRAM_API_KEY ?? ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ttl_seconds: 60 }),
+    }),
   ]);
 
-  return { supabaseAuth, supabaseAdmin, stripe, openai };
+  return { supabaseAuth, supabaseAdmin, stripe, openai, deepgram };
 }
 
 export async function GET(request: Request) {
@@ -152,7 +166,7 @@ export async function GET(request: Request) {
       checks.STRIPE_SECRET_KEY.ok &&
       checks.STRIPE_WEBHOOK_SECRET.ok &&
       checks.STRIPE_PRICE_ID.ok,
-    ai: checks.OPENAI_API_KEY.ok,
+    ai: checks.OPENAI_API_KEY.ok && checks.DEEPGRAM_API_KEY.ok,
     storage: checks.SUPABASE_URL.ok && checks.SUPABASE_SERVICE_ROLE_KEY.ok,
   };
 

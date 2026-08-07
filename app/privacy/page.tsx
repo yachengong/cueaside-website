@@ -99,11 +99,13 @@ export default function PrivacyPolicy() {
         <section>
           <h2>How conversation content is handled</h2>
           <p>
-            During a session, audio is transcribed and relevant context is sent
-            to our AI provider (OpenAI) through the CueAside API to generate
-            your answer. These requests are made with storage disabled, and
-            CueAside servers do not retain the audio, transcripts, or generated
-            answers after the response is delivered to your app.
+            During a session, audio is transcribed by Deepgram and relevant
+            context is sent to OpenAI through the CueAside API to generate your
+            answer. If live transcription is unavailable or uncertain, a
+            bounded audio segment may be sent to OpenAI for a second
+            transcription attempt. CueAside servers do not retain the audio,
+            transcripts, or generated answers after the response is delivered
+            to your app.
           </p>
           <p>
             Requests include a pseudonymous safety identifier—a one-way hash
@@ -128,7 +130,11 @@ export default function PrivacyPolicy() {
               billing portal.
             </li>
             <li>
-              <strong>OpenAI</strong> — AI transcription and answer generation.
+              <strong>Deepgram</strong> — live speech-to-text transcription.
+            </li>
+            <li>
+              <strong>OpenAI</strong> — answer generation and fallback
+              transcription.
             </li>
             <li>
               <strong>Vercel</strong> — website and API hosting.

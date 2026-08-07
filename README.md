@@ -25,9 +25,11 @@ creates the temporary static GitHub Pages build used during the migration.
 - Vercel hosts the Next.js website and API.
 - Supabase provides email authentication and Postgres storage.
 - Stripe hosts checkout and the customer billing portal.
-- OpenAI requests run only through the server-side CueAside API.
+- OpenAI answer and fallback-transcription requests run through CueAside's API.
+- Deepgram provides Nova-3 live transcription through short-lived server-issued
+  tokens; its long-lived key never enters the macOS app.
 
 Create the Supabase tables and atomic usage functions by applying
 `supabase/migrations/202607290001_cueaside_commercial.sql`, then configure the
-variables listed in `.env.example` in Vercel. The service-role and OpenAI keys
-must remain server-only.
+variables listed in `.env.example` in Vercel. The service-role, OpenAI, and
+Deepgram keys must remain server-only.

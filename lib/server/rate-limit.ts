@@ -35,3 +35,28 @@ export async function enforcePublicRateLimit(input: {
   }
 
 }
+
+/// Authenticated endpoints should be limited by the verified account, not a
+/// caller-controlled network header. This also keeps the limit stable when a
+/// laptop moves between Wi-Fi and a phone hotspot during a session.
+export async function enforceAccountRateLimit(input: {
+  scope: string;
+  subject: string;
+  maximum: number;
+  windowSeconds: number;
+}): Promise<void> {
+  const rawKey = `${input.scope}:${input.subject}`;
+  const key = `${input.scope}:${await pseudonymousIdentifier(rawKey)}`;
+  const allowed = await consumeRateLimit({
+    key,
+    maximum: input.maximum,
+    windowSeconds: input.windowSeconds,
+  });
+  if (!allowed) {
+    throw new ServiceError(
+      "Too many attempts. Wait a moment and try again.",
+      429,
+      "rate_limited",
+    );
+  }
+}

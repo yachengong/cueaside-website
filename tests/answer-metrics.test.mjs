@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   estimateAnswerCostMicroUSD,
+  failedAnswerMetric,
   observeAnswerStream,
 } from "../lib/server/answer-metrics.ts";
 
@@ -34,6 +35,36 @@ test("estimates standard, cached, and Fast answer cost in micro-USD", () => {
     cachedInputTokens: 0,
     outputTokens: 100,
   }), 6_400);
+});
+
+test("records a bounded content-free metric for upstream failures", () => {
+  const metric = failedAnswerMetric({
+    model: "unexpected-model",
+    depth: "unexpected-depth",
+    reasoningEffort: "high",
+    serviceTier: "priority",
+    httpStatus: 900,
+    startedAt: Date.now() - 50,
+  });
+
+  assert.deepEqual(metric, {
+    event: "answer_metric",
+    model: "gpt-5.6-terra",
+    depth: "balanced",
+    reasoningEffort: "none",
+    serviceTier: "fast",
+    status: "failed",
+    httpStatus: 599,
+    firstReadableMs: null,
+    durationMs: metric.durationMs,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    estimatedCostMicroUSD: 0,
+    pricingVersion: "2026-07-30",
+  });
+  assert.ok(metric.durationMs >= 0 && metric.durationMs <= 300_000);
 });
 
 test("proxies split SSE bytes and retains only content-free metrics", async () => {
@@ -99,7 +130,7 @@ test("cancellation resolves a bounded metric instead of hanging after-work", asy
     depth: "instinct",
     reasoningEffort: "none",
     serviceTier: null,
-    httpStatus: 200,
+    httpStatus: 900,
     startedAt: Date.now(),
   });
 
@@ -109,5 +140,6 @@ test("cancellation resolves a bounded metric instead of hanging after-work", asy
   const metric = await observed.completion;
   assert.equal(upstreamCancelled, true);
   assert.equal(metric.status, "cancelled");
+  assert.equal(metric.httpStatus, 599);
   assert.equal(metric.firstReadableMs, null);
 });

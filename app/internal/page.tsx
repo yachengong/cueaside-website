@@ -22,6 +22,7 @@ import {
   internalAccountsFor,
   internalMonthlyUsageFor,
   listInternalAuthUsers,
+  recentInternalAnswerMetrics,
   recentInternalAuditEvents,
 } from "@/lib/server/supabase";
 
@@ -120,6 +121,43 @@ function dateTimeLabel(value: string): string {
       }).format(date);
 }
 
+function percentile(values: number[], fraction: number): number | null {
+  if (values.length === 0) return null;
+  const ordered = [...values].sort((left, right) => left - right);
+  const index = Math.min(
+    ordered.length - 1,
+    Math.max(0, Math.ceil(ordered.length * fraction) - 1),
+  );
+  return ordered[index];
+}
+
+function durationLabel(milliseconds: number | null): string {
+  if (milliseconds === null) return "—";
+  if (milliseconds < 1_000) return `${milliseconds.toLocaleString()} ms`;
+  return `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
+}
+
+function costLabel(microUSD: number): string {
+  const dollars = microUSD / 1_000_000;
+  if (dollars === 0) return "$0.0000";
+  if (dollars < 0.0001) return "<$0.0001";
+  return `$${dollars.toFixed(dollars < 0.01 ? 4 : 2)}`;
+}
+
+function modelLabel(model: string): string {
+  return model.replace("gpt-5.6-", "").replace(/^./, (value) =>
+    value.toUpperCase()
+  );
+}
+
+function metricStatusTone(status: string): StatusTone {
+  if (status === "completed") return "good";
+  if (status === "cancelled" || status === "incomplete" || status === "ended") {
+    return "warning";
+  }
+  return "bad";
+}
+
 export default async function InternalConsolePage({
   searchParams,
 }: {
@@ -138,9 +176,10 @@ export default async function InternalConsolePage({
   const page = parsePage(params.page);
   const checksValue = Array.isArray(params.checks) ? params.checks[0] : params.checks;
   const shouldRunProviderChecks = checksValue === "live";
-  const [directory, providerHealth] = await Promise.all([
+  const [directory, providerHealth, answerMetrics] = await Promise.all([
     listInternalAuthUsers({ page, perPage: PAGE_SIZE }),
     shouldRunProviderChecks ? liveProviderProbes() : Promise.resolve(null),
+    recentInternalAnswerMetrics({ hours: 24, limit: 500 }),
   ]);
   const userIDs = directory.users.map((user) => user.id);
   const [accounts, usage, audit] = await Promise.all([
@@ -177,13 +216,35 @@ export default async function InternalConsolePage({
   const activeCount = accounts.filter((row) =>
     ACTIVE_STATUSES.has(row.subscription_status),
   ).length;
+  const completedAnswerMetrics = answerMetrics.filter(
+    (metric) => metric.status === "completed",
+  );
+  const firstReadableP95 = percentile(
+    completedAnswerMetrics.flatMap((metric) =>
+      metric.first_readable_ms === null ? [] : [metric.first_readable_ms]
+    ),
+    0.95,
+  );
+  const durationP95 = percentile(
+    completedAnswerMetrics.map((metric) => metric.duration_ms),
+    0.95,
+  );
+  const answerCostMicroUSD = answerMetrics.reduce(
+    (sum, metric) => sum + metric.estimated_cost_micro_usd,
+    0,
+  );
+  const completionPercent = answerMetrics.length
+    ? Math.round(completedAnswerMetrics.length / answerMetrics.length * 100)
+    : 0;
   const shapes = providerShapeChecks(env);
   const providerRows = [
     {
       name: "Supabase Auth",
       note: "Sign-in and session service",
       status: providerStatus(
-        shapes.SUPABASE_URL.ok && shapes.SUPABASE_ANON_KEY.ok,
+        shapes.SUPABASE_URL.ok &&
+          shapes.SUPABASE_ANON_KEY.ok &&
+          shapes.SUPABASE_ENVIRONMENT.ok,
         providerHealth?.supabaseAuth ?? null,
       ),
     },
@@ -191,7 +252,9 @@ export default async function InternalConsolePage({
       name: "Supabase Admin",
       note: "Accounts, usage, and billing data",
       status: providerStatus(
-        shapes.SUPABASE_URL.ok && shapes.SUPABASE_SERVICE_ROLE_KEY.ok,
+        shapes.SUPABASE_URL.ok &&
+          shapes.SUPABASE_SERVICE_ROLE_KEY.ok &&
+          shapes.SUPABASE_ENVIRONMENT.ok,
         providerHealth?.supabaseAdmin ?? null,
       ),
     },
@@ -285,6 +348,7 @@ export default async function InternalConsolePage({
           </div>
           <nav aria-label="Console sections">
             <a className="is-active" href="#accounts">Accounts</a>
+            <a href="#model-calls">Model calls</a>
             <a href="#providers">Provider health</a>
             <a href="#monitoring">Monitoring</a>
             <a href="#audit">Access audit</a>
@@ -301,7 +365,7 @@ export default async function InternalConsolePage({
         <header className="internal-console-header">
           <div>
             <p className="internal-kicker">Operations overview</p>
-            <h1>Accounts and usage</h1>
+            <h1>Accounts and performance</h1>
             <p>
               Read-only {deploymentLabel.toLowerCase()} account data. No audio,
               transcripts, prompts,
@@ -334,6 +398,89 @@ export default async function InternalConsolePage({
             <strong>{adminIDs.size}</strong>
             <small>Server allowlist</small>
           </article>
+        </section>
+
+        <section className="internal-panel internal-metrics-panel" id="model-calls">
+          <div className="internal-panel-head">
+            <div>
+              <p className="internal-kicker">Last 24 hours</p>
+              <h2>Answer performance</h2>
+            </div>
+            <span>Latest {answerMetrics.length.toLocaleString()} of 500</span>
+          </div>
+          <div className="internal-metric-grid" aria-label="Answer performance summary">
+            <article>
+              <span>Calls</span>
+              <strong>{answerMetrics.length.toLocaleString()}</strong>
+              <small>{completionPercent}% completed</small>
+            </article>
+            <article>
+              <span>First readable p95</span>
+              <strong>{durationLabel(firstReadableP95)}</strong>
+              <small>Completed streams</small>
+            </article>
+            <article>
+              <span>Total time p95</span>
+              <strong>{durationLabel(durationP95)}</strong>
+              <small>Completed streams</small>
+            </article>
+            <article>
+              <span>Estimated cost</span>
+              <strong>{costLabel(answerCostMicroUSD)}</strong>
+              <small>Versioned token pricing</small>
+            </article>
+          </div>
+          <div className="internal-table-wrap">
+            <table className="internal-table internal-metrics-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Depth</th>
+                  <th>Tier</th>
+                  <th>First readable</th>
+                  <th>Total</th>
+                  <th>Input / output</th>
+                  <th>Cost</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {answerMetrics.slice(0, 20).map((metric) => (
+                  <tr key={metric.id}>
+                    <td>
+                      <strong>{modelLabel(metric.model)}</strong>
+                      <small>{dateTimeLabel(metric.recorded_at)}</small>
+                    </td>
+                    <td>{modelLabel(metric.depth)}</td>
+                    <td>{metric.service_tier === "fast" ? "Fast" : "Standard"}</td>
+                    <td>{durationLabel(metric.first_readable_ms)}</td>
+                    <td>{durationLabel(metric.duration_ms)}</td>
+                    <td>
+                      {metric.input_tokens.toLocaleString()} / {metric.output_tokens.toLocaleString()}
+                    </td>
+                    <td>{costLabel(metric.estimated_cost_micro_usd)}</td>
+                    <td>
+                      <span className={`internal-provider-status is-${metricStatusTone(metric.status)}`}>
+                        <i aria-hidden="true" />
+                        {metric.status.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {answerMetrics.length === 0 ? (
+                  <tr>
+                    <td className="internal-empty-row" colSpan={8}>
+                      No content-free answer metrics have been recorded yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          <p className="internal-provider-footnote">
+            Retained for 30 days. No account ID, question, answer, prompt,
+            transcript, Context, Project State, or provider body is stored.
+          </p>
         </section>
 
         <section className="internal-panel internal-provider-panel" id="monitoring">

@@ -47,7 +47,9 @@ test(
             create role authenticated nologin;
           end if;
           if not exists (select 1 from pg_roles where rolname = 'service_role') then
-            create role service_role nologin;
+            create role service_role nologin bypassrls;
+          else
+            alter role service_role bypassrls;
           end if;
         end
         $roles$;
@@ -148,8 +150,16 @@ test(
         ),
         "utf8",
       );
+      const answerMetricsMigration = await readFile(
+        new URL(
+          "../supabase/migrations/20260807131000_answer_generation_metrics.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
       await pool.query(consoleFoundation);
       await pool.query(consoleTargetIndex);
+      await pool.query(answerMetricsMigration);
 
       const consolePrivileges = await pool.query(`
         select
@@ -217,7 +227,77 @@ test(
             'service_role',
             'public.internal_audit_log_id_seq',
             'USAGE'
-          ) as service_audit_sequence_usage
+          ) as service_audit_sequence_usage,
+          (
+            select relrowsecurity
+            from pg_class
+            where oid = 'public.answer_generation_metrics'::regclass
+          ) as metrics_rls,
+          has_table_privilege(
+            'anon',
+            'public.answer_generation_metrics',
+            'SELECT'
+          ) as anon_metrics_select,
+          has_table_privilege(
+            'authenticated',
+            'public.answer_generation_metrics',
+            'SELECT'
+          ) as authenticated_metrics_select,
+          has_table_privilege(
+            'anon',
+            'public.answer_generation_metrics',
+            'INSERT'
+          ) as anon_metrics_insert,
+          has_table_privilege(
+            'authenticated',
+            'public.answer_generation_metrics',
+            'INSERT'
+          ) as authenticated_metrics_insert,
+          has_table_privilege(
+            'anon',
+            'public.answer_generation_metrics',
+            'DELETE'
+          ) as anon_metrics_delete,
+          has_table_privilege(
+            'authenticated',
+            'public.answer_generation_metrics',
+            'DELETE'
+          ) as authenticated_metrics_delete,
+          has_table_privilege(
+            'service_role',
+            'public.answer_generation_metrics',
+            'SELECT'
+          ) as service_metrics_select,
+          has_table_privilege(
+            'service_role',
+            'public.answer_generation_metrics',
+            'INSERT'
+          ) as service_metrics_insert,
+          has_table_privilege(
+            'service_role',
+            'public.answer_generation_metrics',
+            'DELETE'
+          ) as service_metrics_delete,
+          has_sequence_privilege(
+            'service_role',
+            'public.answer_generation_metrics_id_seq',
+            'USAGE'
+          ) as service_metrics_sequence_usage,
+          has_function_privilege(
+            'anon',
+            'private.prune_answer_generation_metrics()',
+            'EXECUTE'
+          ) as anon_metrics_execute,
+          has_function_privilege(
+            'authenticated',
+            'private.prune_answer_generation_metrics()',
+            'EXECUTE'
+          ) as authenticated_metrics_execute,
+          has_function_privilege(
+            'service_role',
+            'private.prune_answer_generation_metrics()',
+            'EXECUTE'
+          ) as service_metrics_execute
       `);
       assert.deepEqual(consolePrivileges.rows[0], {
         sessions_rls: true,
@@ -233,13 +313,31 @@ test(
         service_audit_select: true,
         service_audit_insert: true,
         service_audit_sequence_usage: true,
+        metrics_rls: true,
+        anon_metrics_select: false,
+        authenticated_metrics_select: false,
+        anon_metrics_insert: false,
+        authenticated_metrics_insert: false,
+        anon_metrics_delete: false,
+        authenticated_metrics_delete: false,
+        service_metrics_select: true,
+        service_metrics_insert: true,
+        service_metrics_delete: true,
+        service_metrics_sequence_usage: true,
+        anon_metrics_execute: false,
+        authenticated_metrics_execute: false,
+        service_metrics_execute: true,
       });
 
       const consolePolicies = await pool.query(`
         select count(*)::integer as count
         from pg_policies
         where schemaname = 'public'
-          and tablename in ('internal_admin_sessions', 'internal_audit_log')
+          and tablename in (
+            'internal_admin_sessions',
+            'internal_audit_log',
+            'answer_generation_metrics'
+          )
       `);
       assert.equal(consolePolicies.rows[0].count, 0);
 
@@ -247,7 +345,11 @@ test(
         select column_name
         from information_schema.columns
         where table_schema = 'public'
-          and table_name in ('internal_admin_sessions', 'internal_audit_log')
+          and table_name in (
+            'internal_admin_sessions',
+            'internal_audit_log',
+            'answer_generation_metrics'
+          )
           and column_name ~* '(audio|transcript|question|answer|prompt|content|context|resume|note|message)'
       `);
       assert.deepEqual(contentColumns.rows, []);
@@ -259,6 +361,157 @@ test(
           and indexname = 'internal_audit_log_target_occurred_idx'
       `);
       assert.equal(targetIndex.rowCount, 1);
+
+      await pool.query(
+        `insert into public.answer_generation_metrics (
+          deployment,
+          model,
+          depth,
+          reasoning_effort,
+          service_tier,
+          status,
+          http_status,
+          first_readable_ms,
+          duration_ms,
+          input_tokens,
+          cached_input_tokens,
+          output_tokens,
+          reasoning_tokens,
+          estimated_cost_micro_usd,
+          pricing_version,
+          recorded_at
+        ) values (
+          'production',
+          'gpt-5.6-terra',
+          'balanced',
+          'none',
+          'standard',
+          'completed',
+          200,
+          500,
+          900,
+          1000,
+          200,
+          100,
+          0,
+          3000,
+          '2026-07-30',
+          now()
+        )`,
+      );
+      await pool.query(`
+        update public.answer_generation_metrics
+        set recorded_at = now() - interval '31 days'
+        where model = 'gpt-5.6-terra'
+      `);
+      // The retention trigger should run with the same service role used by
+      // the server-side REST client, not with the test's postgres owner.
+      await pool.query("begin");
+      try {
+        await pool.query("set local role service_role");
+        await pool.query(
+          `insert into public.answer_generation_metrics (
+          deployment,
+          model,
+          depth,
+          reasoning_effort,
+          service_tier,
+          status,
+          http_status,
+          first_readable_ms,
+          duration_ms,
+          input_tokens,
+          cached_input_tokens,
+          output_tokens,
+          reasoning_tokens,
+          estimated_cost_micro_usd,
+          pricing_version
+        ) values (
+          'production',
+          'gpt-5.6-sol',
+          'thinking',
+          'medium',
+          'fast',
+          'completed',
+          200,
+          9000,
+          12000,
+          6000,
+          0,
+          700,
+          500,
+          52000,
+          '2026-07-30'
+        )`,
+        );
+        await pool.query("commit");
+      } catch (error) {
+        await pool.query("rollback");
+        throw error;
+      }
+      const storedMetrics = await pool.query(`
+        select
+          deployment,
+          model,
+          depth,
+          service_tier,
+          first_readable_ms,
+          duration_ms,
+          input_tokens,
+          output_tokens,
+          estimated_cost_micro_usd
+        from public.answer_generation_metrics
+        order by recorded_at desc
+      `);
+      assert.deepEqual(storedMetrics.rows, [{
+        deployment: "production",
+        model: "gpt-5.6-sol",
+        depth: "thinking",
+        service_tier: "fast",
+        first_readable_ms: 9_000,
+        duration_ms: 12_000,
+        input_tokens: 6_000,
+        output_tokens: 700,
+        estimated_cost_micro_usd: "52000",
+      }]);
+      await assert.rejects(
+        pool.query(
+          `insert into public.answer_generation_metrics (
+            deployment,
+            model,
+            depth,
+            reasoning_effort,
+            service_tier,
+            status,
+            http_status,
+            first_readable_ms,
+            duration_ms,
+            input_tokens,
+            cached_input_tokens,
+            output_tokens,
+            reasoning_tokens,
+            estimated_cost_micro_usd,
+            pricing_version
+          ) values (
+            'production',
+            'invented-model',
+            'balanced',
+            'none',
+            'standard',
+            'completed',
+            200,
+            100,
+            200,
+            10,
+            0,
+            10,
+            0,
+            1,
+            '2026-07-30'
+          )`,
+        ),
+        /answer_generation_metrics_model_check/,
+      );
 
       const adminId = userId(1);
       await pool.query(

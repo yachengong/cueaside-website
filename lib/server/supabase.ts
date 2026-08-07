@@ -1,4 +1,9 @@
-import { ServiceError, requireRuntimeValue } from "./runtime";
+import type { AnswerMetric } from "./answer-metrics";
+import {
+  deploymentEnvironment,
+  ServiceError,
+  requireRuntimeValue,
+} from "./runtime";
 import { observeExternalCall } from "./observability";
 
 export interface BillingAccountRow {
@@ -61,6 +66,32 @@ export interface InternalAuditRow {
   action: string;
   target_user_id: string | null;
   occurred_at: string;
+}
+
+export interface InternalAnswerMetricRow {
+  id: number;
+  recorded_at: string;
+  deployment: "production" | "preview" | "development";
+  model: "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol";
+  depth: "instinct" | "balanced" | "precise" | "thinking";
+  reasoning_effort: "none" | "low" | "medium";
+  service_tier: "standard" | "fast";
+  status:
+    | "completed"
+    | "incomplete"
+    | "failed"
+    | "cancelled"
+    | "stream_error"
+    | "ended";
+  http_status: number;
+  first_readable_ms: number | null;
+  duration_ms: number;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  reasoning_tokens: number;
+  estimated_cost_micro_usd: number;
+  pricing_version: string;
 }
 
 function adminURL(path: string): string {
@@ -269,6 +300,65 @@ export async function recentInternalAuditEvents(
   const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
   return adminRequest<InternalAuditRow[]>(
     `internal_audit_log?select=id,admin_user_id,action,target_user_id,occurred_at&order=occurred_at.desc&limit=${safeLimit}`,
+  );
+}
+
+export async function recordAnswerGenerationMetric(
+  metric: AnswerMetric,
+): Promise<void> {
+  await adminRequest("answer_generation_metrics", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      deployment: deploymentEnvironment(),
+      model: metric.model,
+      depth: metric.depth,
+      reasoning_effort: metric.reasoningEffort,
+      service_tier: metric.serviceTier,
+      status: metric.status,
+      http_status: metric.httpStatus,
+      first_readable_ms: metric.firstReadableMs,
+      duration_ms: metric.durationMs,
+      input_tokens: metric.inputTokens,
+      cached_input_tokens: metric.cachedInputTokens,
+      output_tokens: metric.outputTokens,
+      reasoning_tokens: metric.reasoningTokens,
+      estimated_cost_micro_usd: metric.estimatedCostMicroUSD,
+      pricing_version: metric.pricingVersion,
+    }),
+  });
+}
+
+export async function recentInternalAnswerMetrics(input: {
+  hours?: number;
+  limit?: number;
+} = {}): Promise<InternalAnswerMetricRow[]> {
+  const hours = Math.min(24 * 30, Math.max(1, Math.floor(input.hours ?? 24)));
+  const limit = Math.min(1_000, Math.max(1, Math.floor(input.limit ?? 500)));
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1_000).toISOString();
+  const columns = [
+    "id",
+    "recorded_at",
+    "deployment",
+    "model",
+    "depth",
+    "reasoning_effort",
+    "service_tier",
+    "status",
+    "http_status",
+    "first_readable_ms",
+    "duration_ms",
+    "input_tokens",
+    "cached_input_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+    "estimated_cost_micro_usd",
+    "pricing_version",
+  ].join(",");
+  return adminRequest<InternalAnswerMetricRow[]>(
+    `answer_generation_metrics?recorded_at=gte.${encodeURIComponent(
+      cutoff,
+    )}&select=${columns}&order=recorded_at.desc&limit=${limit}`,
   );
 }
 

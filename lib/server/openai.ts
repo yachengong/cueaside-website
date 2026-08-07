@@ -1,6 +1,12 @@
 import { after } from "next/server";
 import { CueAsideUser } from "./auth";
-import { logAnswerMetric, observeAnswerStream } from "./answer-metrics";
+import {
+  failedAnswerMetric,
+  logAnswerMetric,
+  logAnswerMetricPersistenceFailure,
+  observeAnswerStream,
+  type AnswerMetric,
+} from "./answer-metrics";
 import { recordUsage, requireEntitlement, UsageKind } from "./billing";
 import {
   ServiceError,
@@ -10,6 +16,7 @@ import {
 } from "./runtime";
 import { enforceAccountRateLimit } from "./rate-limit";
 import { observeExternalCall } from "./observability";
+import { recordAnswerGenerationMetric } from "./supabase";
 
 const DEPTHS = {
   instinct: {
@@ -53,6 +60,18 @@ async function authorizeAI(user: CueAsideUser, kind: UsageKind) {
     entitlement.plan,
     entitlement.bypass,
   );
+}
+
+function scheduleAnswerMetric(metric: Promise<AnswerMetric>): void {
+  after(async () => {
+    const completed = await metric;
+    logAnswerMetric(completed);
+    try {
+      await recordAnswerGenerationMetric(completed);
+    } catch {
+      logAnswerMetricPersistenceFailure();
+    }
+  });
 }
 
 type ResponseProxyBody = {
@@ -139,27 +158,47 @@ export async function proxyAnswer(
   });
   await authorizeAI(user, "answerRequests");
   const startedAt = Date.now();
-  const upstream = await observeExternalCall(
-    { service: "openai", operation: "answer" },
-    async () => fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: await openAIHeaders(user.id),
-      body: JSON.stringify({
-        model: profile.model,
-        instructions,
-        input,
-        store: false,
-        stream: true,
-        max_output_tokens: maxOutputTokens,
-        reasoning: { effort: profile.effort },
-        ...(profile.serviceTier
-          ? { service_tier: profile.serviceTier }
-          : {}),
+  const metricInput = {
+    model: profile.model,
+    depth,
+    reasoningEffort: profile.effort,
+    serviceTier: profile.serviceTier,
+    startedAt,
+  };
+  let upstream: Response;
+  try {
+    upstream = await observeExternalCall(
+      { service: "openai", operation: "answer" },
+      async () => fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: await openAIHeaders(user.id),
+        body: JSON.stringify({
+          model: profile.model,
+          instructions,
+          input,
+          store: false,
+          stream: true,
+          max_output_tokens: maxOutputTokens,
+          reasoning: { effort: profile.effort },
+          ...(profile.serviceTier
+            ? { service_tier: profile.serviceTier }
+            : {}),
+        }),
       }),
-    }),
-  );
+    );
+  } catch (error) {
+    scheduleAnswerMetric(Promise.resolve(failedAnswerMetric({
+      ...metricInput,
+      httpStatus: 0,
+    })));
+    throw error;
+  }
 
   if (!upstream.ok) {
+    scheduleAnswerMetric(Promise.resolve(failedAnswerMetric({
+      ...metricInput,
+      httpStatus: upstream.status,
+    })));
     await upstream.body?.cancel();
     throw new ServiceError(
       "The answer service is temporarily unavailable.",
@@ -169,6 +208,10 @@ export async function proxyAnswer(
   }
 
   if (!upstream.body) {
+    scheduleAnswerMetric(Promise.resolve(failedAnswerMetric({
+      ...metricInput,
+      httpStatus: upstream.status,
+    })));
     throw new ServiceError(
       "The answer service returned no stream.",
       502,
@@ -177,16 +220,10 @@ export async function proxyAnswer(
   }
 
   const observed = observeAnswerStream(upstream.body, {
-    model: profile.model,
-    depth,
-    reasoningEffort: profile.effort,
-    serviceTier: profile.serviceTier,
+    ...metricInput,
     httpStatus: upstream.status,
-    startedAt,
   });
-  after(async () => {
-    logAnswerMetric(await observed.completion);
-  });
+  scheduleAnswerMetric(observed.completion);
 
   return new Response(observed.body, {
     status: upstream.status,

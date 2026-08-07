@@ -49,9 +49,10 @@ test("Console stores only a one-way session-token hash", async () => {
 });
 
 test("Console database tables are service-role-only and content-free", async () => {
-  const migration = await source(
-    "supabase/migrations/20260807072221_internal_console_foundation.sql",
-  );
+  const [migration, metricsMigration] = await Promise.all([
+    source("supabase/migrations/20260807072221_internal_console_foundation.sql"),
+    source("supabase/migrations/20260807131000_answer_generation_metrics.sql"),
+  ]);
   assert.match(migration, /internal_admin_sessions/);
   assert.match(migration, /internal_audit_log/);
   assert.match(migration, /enable row level security/);
@@ -60,6 +61,19 @@ test("Console database tables are service-role-only and content-free", async () 
   assert.doesNotMatch(migration, /jsonb|json|bytea/i);
   assert.doesNotMatch(
     migration,
+    /^\s*(transcript|audio|prompt|question|answer|content|message|context|resume|note)\w*\s+(text|jsonb|json|bytea)/im,
+  );
+  assert.match(metricsMigration, /answer_generation_metrics/);
+  assert.match(metricsMigration, /enable row level security/);
+  assert.match(metricsMigration, /grant select, insert, delete[\s\S]*to service_role/);
+  assert.match(metricsMigration, /private\.prune_answer_generation_metrics/);
+  assert.match(metricsMigration, /security invoker/);
+  assert.doesNotMatch(metricsMigration, /security definer/i);
+  assert.match(metricsMigration, /interval '30 days'/);
+  assert.doesNotMatch(metricsMigration, /\b(user_id|email|session_id)\b/i);
+  assert.doesNotMatch(metricsMigration, /jsonb|json|bytea/i);
+  assert.doesNotMatch(
+    metricsMigration,
     /^\s*(transcript|audio|prompt|question|answer|content|message|context|resume|note)\w*\s+(text|jsonb|json|bytea)/im,
   );
 });
@@ -112,4 +126,43 @@ test("Console runs provider checks only after an authenticated admin asks", asyn
   assert.doesNotMatch(providers, /console\.(?:log|error|warn)/);
   assert.match(health, /liveProviderProbes/);
   assert.match(layout, /SpeedInsights/);
+});
+
+test("Console displays only content-free answer performance fields", async () => {
+  const [page, storage, openai, metrics] = await Promise.all([
+    source("app/internal/page.tsx"),
+    source("lib/server/supabase.ts"),
+    source("lib/server/openai.ts"),
+    source("lib/server/answer-metrics.ts"),
+  ]);
+
+  assert.match(page, /Answer performance/);
+  assert.match(page, /First readable p95/);
+  assert.match(page, /Estimated cost/);
+  assert.match(page, /recentInternalAnswerMetrics/);
+  assert.match(page, /Retained for 30 days/);
+  assert.match(storage, /recordAnswerGenerationMetric/);
+  assert.match(storage, /adminRequest\("answer_generation_metrics"/);
+  assert.match(openai, /scheduleAnswerMetric\(observed\.completion\)/);
+  assert.match(openai, /failedAnswerMetric/);
+  assert.match(metrics, /answer_metric_persist_failed/);
+  const metricInterfaceStart = storage.indexOf(
+    "export interface InternalAnswerMetricRow",
+  );
+  const metricInterfaceEnd = storage.indexOf("\n}\n", metricInterfaceStart) + 3;
+  const metricWriterStart = storage.indexOf(
+    "export async function recordAnswerGenerationMetric",
+  );
+  const metricReaderEnd = storage.indexOf(
+    "export async function billingAccountFor",
+    metricWriterStart,
+  );
+  const metricStorage = [
+    storage.slice(metricInterfaceStart, metricInterfaceEnd),
+    storage.slice(metricWriterStart, metricReaderEnd),
+  ].join("\n");
+  assert.doesNotMatch(
+    metricStorage,
+    /question|answerText|prompt|transcript|context|session_id/i,
+  );
 });

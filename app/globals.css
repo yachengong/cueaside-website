@@ -373,6 +373,53 @@
   margin-bottom: 20px;
 }
 
+.internal-metrics-panel {
+  margin-bottom: 20px;
+}
+
+.internal-metric-grid {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  border-bottom: 1px solid #eaecf0;
+  background: #fbfbfd;
+}
+
+.internal-metric-grid article {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #eaecf0;
+  border-radius: 12px;
+  background: white;
+}
+
+.internal-metric-grid span,
+.internal-metric-grid small {
+  display: block;
+  color: #667085;
+  font-size: 11px;
+}
+
+.internal-metric-grid strong {
+  display: block;
+  margin: 5px 0 2px;
+  color: #1d2939;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.internal-metrics-table {
+  min-width: 980px;
+}
+
+.internal-empty-row {
+  padding: 32px 20px !important;
+  color: #98a2b3 !important;
+  text-align: center;
+}
+
 .internal-check-button {
   padding: 8px 11px;
   border: 1px solid #d8dce5;
@@ -691,6 +738,10 @@
   .internal-provider-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .internal-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
@@ -717,6 +768,10 @@
   }
 
   .internal-provider-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .internal-metric-grid {
     grid-template-columns: 1fr;
   }
 

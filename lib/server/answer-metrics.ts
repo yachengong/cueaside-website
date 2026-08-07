@@ -28,7 +28,7 @@ export type AnswerMetric = {
   pricingVersion: "2026-07-30";
 };
 
-type AnswerMetricInput = {
+export type AnswerMetricInput = {
   model: string;
   depth: string;
   reasoningEffort: string;
@@ -125,6 +125,29 @@ function boundedInteger(value: unknown, maximum = 100_000_000): number {
 function boundedMilliseconds(value: number): number {
   if (!Number.isFinite(value) || value <= 0) return 0;
   return Math.min(300_000, Math.round(value));
+}
+
+export function failedAnswerMetric(
+  input: AnswerMetricInput,
+  status: Extract<AnswerStatus, "failed" | "stream_error"> = "failed",
+): AnswerMetric {
+  return {
+    event: "answer_metric",
+    model: closedModel(input.model),
+    depth: closedDepth(input.depth),
+    reasoningEffort: closedEffort(input.reasoningEffort),
+    serviceTier: closedTier(input.serviceTier),
+    status,
+    httpStatus: Math.min(599, Math.max(0, Math.floor(input.httpStatus))),
+    firstReadableMs: null,
+    durationMs: boundedMilliseconds(Date.now() - input.startedAt),
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    estimatedCostMicroUSD: 0,
+    pricingVersion: "2026-07-30",
+  };
 }
 
 export function estimateAnswerCostMicroUSD(input: {
@@ -262,7 +285,7 @@ export function observeAnswerStream(
       reasoningEffort: closedEffort(input.reasoningEffort),
       serviceTier: actualTier,
       status,
-      httpStatus: Math.min(999, Math.max(0, Math.floor(input.httpStatus))),
+      httpStatus: Math.min(599, Math.max(0, Math.floor(input.httpStatus))),
       firstReadableMs,
       durationMs: boundedMilliseconds(Date.now() - input.startedAt),
       inputTokens,
@@ -317,4 +340,11 @@ export function logAnswerMetric(metric: AnswerMetric): void {
   } else {
     console.error(record);
   }
+}
+
+/** Closed failure signal; never attach the thrown database error. */
+export function logAnswerMetricPersistenceFailure(): void {
+  console.error(JSON.stringify({
+    event: "answer_metric_persist_failed",
+  }));
 }

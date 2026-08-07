@@ -24,7 +24,9 @@ import {
   internalMonthlyUsageFor,
   listInternalAuthUsers,
   recentInternalAuditEvents,
+  recentInternalSessionDiagnosticSnapshots,
   recentInternalTranscriptionDiagnostics,
+  type InternalSessionDiagnosticFact,
 } from "@/lib/server/supabase";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +87,13 @@ function parsePage(value: string | string[] | undefined): number {
   const raw = Array.isArray(value) ? value[0] : value;
   const parsed = Number.parseInt(raw ?? "1", 10);
   return Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+}
+
+function diagnosticSessionKey(
+  value: string | string[] | undefined,
+): string | undefined {
+  const candidate = firstValue(value)?.trim().toLowerCase();
+  return candidate && /^[a-f0-9]{64}$/.test(candidate) ? candidate : undefined;
 }
 
 function shortID(value: string | null): string {
@@ -246,6 +255,34 @@ function transcriptionModelLabel(model: string): string {
   return model;
 }
 
+function DiagnosticFactList({
+  title,
+  facts,
+}: {
+  title: string;
+  facts: InternalSessionDiagnosticFact[];
+}) {
+  return (
+    <article className="internal-state-group">
+      <header>
+        <strong>{title}</strong>
+        <span>{facts.length}</span>
+      </header>
+      {facts.length ? (
+        <dl>
+          {facts.map((fact) => (
+            <div key={`${title}-${fact.key}`}>
+              <dt>{fact.key}</dt>
+              <dd>{fact.value}</dd>
+              <small>{fact.status} · {fact.source}</small>
+            </div>
+          ))}
+        </dl>
+      ) : <p>No facts in this scope.</p>}
+    </article>
+  );
+}
+
 export default async function InternalConsolePage({
   searchParams,
 }: {
@@ -256,6 +293,7 @@ export default async function InternalConsolePage({
     metricPage?: string | string[];
     model?: string | string[];
     page?: string | string[];
+    diagnosticSession?: string | string[];
     status?: string | string[];
   }>;
 }) {
@@ -272,15 +310,21 @@ export default async function InternalConsolePage({
   const model = allowedValue(params.model, METRIC_MODELS);
   const depth = allowedValue(params.depth, METRIC_DEPTHS);
   const metricStatus = allowedValue(params.status, METRIC_STATUSES);
+  const requestedDiagnosticSession = diagnosticSessionKey(
+    params.diagnosticSession,
+  );
   const checksValue = Array.isArray(params.checks) ? params.checks[0] : params.checks;
   const shouldRunProviderChecks = checksValue === "live";
   const metricFilters = { hours, model, depth, status: metricStatus };
+  const env = runtime();
+  const deployment = deploymentEnvironment(env);
   const [
     directory,
     providerHealth,
     answerMetricPage,
     answerMetricSummary,
     transcriptionDiagnostics,
+    diagnosticSnapshots,
   ] = await Promise.all([
     listInternalAuthUsers({ page, perPage: PAGE_SIZE }),
     shouldRunProviderChecks ? liveProviderProbes() : Promise.resolve(null),
@@ -295,6 +339,9 @@ export default async function InternalConsolePage({
       perPage: METRIC_SUMMARY_LIMIT,
     }),
     recentInternalTranscriptionDiagnostics({ hours: 24, limit: 500 }),
+    deployment === "production"
+      ? Promise.resolve([])
+      : recentInternalSessionDiagnosticSnapshots({ limit: 250 }),
   ]);
   const pageCount = Math.max(1, Math.ceil(directory.total / PAGE_SIZE));
   const metricPageCount = Math.max(
@@ -320,6 +367,29 @@ export default async function InternalConsolePage({
   const hasMetricNavigation = Boolean(
     metricsPage > 1 || hours !== 24 || model || depth || metricStatus,
   );
+  const sessionKeys = [...new Set(
+    diagnosticSnapshots.map((snapshot) => snapshot.session_key),
+  )];
+  const selectedDiagnosticSession = requestedDiagnosticSession &&
+      sessionKeys.includes(requestedDiagnosticSession)
+    ? requestedDiagnosticSession
+    : sessionKeys[0];
+  const selectedDiagnosticSnapshots = selectedDiagnosticSession
+    ? diagnosticSnapshots.filter(
+        (snapshot) => snapshot.session_key === selectedDiagnosticSession,
+      )
+    : [];
+  const latestDiagnosticSnapshot = selectedDiagnosticSnapshots[0] ?? null;
+  const timelineByTurn = new Map<
+    string,
+    typeof diagnosticSnapshots[number]["recent_turns"][number]
+  >();
+  for (const snapshot of [...selectedDiagnosticSnapshots].reverse()) {
+    for (const turn of snapshot.recent_turns) {
+      timelineByTurn.set(turn.turnId, turn);
+    }
+  }
+  const diagnosticTimeline = [...timelineByTurn.values()];
   const [accounts, usage, audit] = await Promise.all([
     internalAccountsFor(userIDs),
     internalMonthlyUsageFor(userIDs),
@@ -328,6 +398,8 @@ export default async function InternalConsolePage({
       adminUserId: principal.userId,
       action: shouldRunProviderChecks
         ? "provider_health_checked"
+        : selectedDiagnosticSession
+          ? "session_diagnostics_viewed"
         : hasMetricNavigation
           ? "answer_metrics_viewed"
           : "console_viewed",
@@ -338,8 +410,6 @@ export default async function InternalConsolePage({
   const usageByUser = new Map(usage.map((row) => [row.user_id, row]));
   const ownerIDs = bypassUserIDs();
   const adminIDs = configuredInternalAdminUserIDs();
-  const env = runtime();
-  const deployment = deploymentEnvironment(env);
   const deploymentLabel = deployment === "production"
     ? "Production"
     : deployment === "preview"
@@ -403,6 +473,7 @@ export default async function InternalConsolePage({
     accountPage?: number;
     metricPage?: number;
     checks?: "live";
+    diagnosticSession?: string;
     hash?: string;
     resetMetrics?: boolean;
   } = {}): string => {
@@ -418,6 +489,11 @@ export default async function InternalConsolePage({
       if (metricStatus) query.set("status", metricStatus);
     }
     if (input.checks) query.set("checks", input.checks);
+    const targetDiagnosticSession = input.diagnosticSession
+      ?? selectedDiagnosticSession;
+    if (targetDiagnosticSession) {
+      query.set("diagnosticSession", targetDiagnosticSession);
+    }
     const suffix = query.size > 0 ? `?${query.toString()}` : "";
     return `/internal/${suffix}${input.hash ? `#${input.hash}` : ""}`;
   };
@@ -533,6 +609,12 @@ export default async function InternalConsolePage({
           </div>
           <nav aria-label="Console sections">
             <a className="is-active" href="#accounts">Accounts</a>
+            {deployment !== "production" ? (
+              <>
+                <a href="#session-timeline">Sessions</a>
+                <a href="#state-inspector">State</a>
+              </>
+            ) : null}
             <a href="#transcription-diagnostics">Transcription</a>
             <a href="#model-calls">Model calls</a>
             <a href="#providers">Provider health</a>
@@ -552,11 +634,18 @@ export default async function InternalConsolePage({
           <div>
             <p className="internal-kicker">Operations overview</p>
             <h1>Accounts and performance</h1>
-            <p>
-              Read-only {deploymentLabel.toLowerCase()} account data. No audio,
-              transcripts, prompts,
-              answers, Context, or Project State.
-            </p>
+            {deployment === "production" ? (
+              <p>
+                Read-only production account data. No audio, transcripts,
+                prompts, answers, Context, or Project State.
+              </p>
+            ) : (
+              <p>
+                Read-only {deploymentLabel.toLowerCase()} operations plus
+                short-lived diagnostics from an authenticated admin&rsquo;s
+                development build. Diagnostic content expires after seven days.
+              </p>
+            )}
           </div>
           <span className={`internal-live-badge is-${deployment}`}>
             <i /> {deploymentLabel}
@@ -585,6 +674,167 @@ export default async function InternalConsolePage({
             <small>Server allowlist</small>
           </article>
         </section>
+
+        {deployment !== "production" ? (
+          <>
+            <section className="internal-panel" id="session-timeline">
+              <div className="internal-panel-head">
+                <div>
+                  <p className="internal-kicker">Development only · 7-day retention</p>
+                  <h2>Session timeline</h2>
+                </div>
+                <span>{sessionKeys.length} diagnostic sessions</span>
+              </div>
+              <div className="internal-session-picker" aria-label="Diagnostic sessions">
+                {sessionKeys.map((sessionKey, index) => (
+                  <Link
+                    className={sessionKey === selectedDiagnosticSession ? "is-selected" : ""}
+                    href={consoleHref({
+                      diagnosticSession: sessionKey,
+                      hash: "session-timeline",
+                    })}
+                    key={sessionKey}
+                  >
+                    Session {sessionKeys.length - index}
+                    <small>{sessionKey.slice(0, 10)}…</small>
+                  </Link>
+                ))}
+              </div>
+              {latestDiagnosticSnapshot ? (
+                <>
+                  <div className="internal-diagnostic-meta">
+                    <span>
+                      <strong>Project</strong>
+                      {latestDiagnosticSnapshot.active_project_id}
+                    </span>
+                    <span>
+                      <strong>Last snapshot</strong>
+                      {dateTimeLabel(latestDiagnosticSnapshot.recorded_at)}
+                    </span>
+                    <span>
+                      <strong>State input</strong>
+                      {latestDiagnosticSnapshot.estimated_input_tokens === null
+                        ? "—"
+                        : `${latestDiagnosticSnapshot.estimated_input_tokens.toLocaleString()} estimated tokens`}
+                    </span>
+                  </div>
+                  <ol className="internal-session-timeline">
+                    {diagnosticTimeline.map((turn, index) => (
+                      <li key={turn.turnId}>
+                        <span>{index + 1}</span>
+                        <div>
+                          <small>Question</small>
+                          <p>{turn.question}</p>
+                          <small>Suggested answer</small>
+                          <p>{turn.suggestedAnswer}</p>
+                          <small>Actually spoken</small>
+                          <p className={turn.spokenReply ? "" : "is-empty"}>
+                            {turn.spokenReply || "Not captured yet"}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  {diagnosticTimeline.length === 0 ? (
+                    <p className="internal-empty-row">No conversation turns in this snapshot.</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="internal-empty-row">
+                  No development diagnostic snapshots have been received yet.
+                </p>
+              )}
+            </section>
+
+            <section className="internal-panel" id="state-inspector">
+              <div className="internal-panel-head">
+                <div>
+                  <p className="internal-kicker">Selected diagnostic session</p>
+                  <h2>State Inspector</h2>
+                </div>
+                <span>
+                  {latestDiagnosticSnapshot
+                    ? `Updated ${dateTimeLabel(
+                        latestDiagnosticSnapshot.state_updated_at
+                          ?? latestDiagnosticSnapshot.recorded_at,
+                      )}`
+                    : "Waiting for a snapshot"}
+                </span>
+              </div>
+              {latestDiagnosticSnapshot ? (
+                <>
+                  <div className="internal-state-grid">
+                    <DiagnosticFactList
+                      title="Seed facts"
+                      facts={latestDiagnosticSnapshot.seed_facts}
+                    />
+                    <DiagnosticFactList
+                      title="Canonical project facts"
+                      facts={latestDiagnosticSnapshot.canonical_facts}
+                    />
+                    <DiagnosticFactList
+                      title="Temporary claims"
+                      facts={latestDiagnosticSnapshot.temporary_claims}
+                    />
+                    <DiagnosticFactList
+                      title="Foreign project mentions"
+                      facts={latestDiagnosticSnapshot.foreign_project_mentions}
+                    />
+                  </div>
+                  <article className="internal-state-group internal-scenario-state">
+                    <header>
+                      <strong>Scenario state</strong>
+                      <span>{latestDiagnosticSnapshot.scenario_state?.facts.length ?? 0}</span>
+                    </header>
+                    {latestDiagnosticSnapshot.scenario_state ? (
+                      <>
+                        <p>
+                          <strong>{latestDiagnosticSnapshot.scenario_state.id}</strong>
+                          {latestDiagnosticSnapshot.scenario_state.triggerQuestion
+                            ? ` · ${latestDiagnosticSnapshot.scenario_state.triggerQuestion}`
+                            : ""}
+                        </p>
+                        <DiagnosticFactList
+                          title="Scenario facts"
+                          facts={latestDiagnosticSnapshot.scenario_state.facts}
+                        />
+                      </>
+                    ) : <p>No active hypothetical scenario.</p>}
+                  </article>
+                  <article className="internal-state-group internal-rejected-state">
+                    <header>
+                      <strong>Rejected claims</strong>
+                      <span>
+                        {latestDiagnosticSnapshot.rejected_claims.conflicts.length
+                          + latestDiagnosticSnapshot.rejected_claims.projectMismatches.length
+                          + latestDiagnosticSnapshot.rejected_claims.invalid.length}
+                      </span>
+                    </header>
+                    <dl>
+                      <div>
+                        <dt>Conflicts</dt>
+                        <dd>{latestDiagnosticSnapshot.rejected_claims.conflicts.join(", ") || "None"}</dd>
+                      </div>
+                      <div>
+                        <dt>Project mismatches</dt>
+                        <dd>{latestDiagnosticSnapshot.rejected_claims.projectMismatches.join(", ") || "None"}</dd>
+                      </div>
+                      <div>
+                        <dt>Invalid</dt>
+                        <dd>{latestDiagnosticSnapshot.rejected_claims.invalid.join(", ") || "None"}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                </>
+              ) : (
+                <p className="internal-empty-row">
+                  State remains local until an admin uses a non-Production
+                  development build connected to this isolated environment.
+                </p>
+              )}
+            </section>
+          </>
+        ) : null}
 
         <section
           className="internal-panel internal-metrics-panel"
@@ -994,16 +1244,26 @@ export default async function InternalConsolePage({
             <div className="internal-panel-head">
               <div>
                 <p className="internal-kicker">Hard boundary</p>
-                <h2>What this Console cannot see</h2>
+                <h2>{deployment === "production"
+                  ? "What this Console cannot see"
+                  : "Diagnostic privacy boundary"}</h2>
               </div>
             </div>
             <ul>
               <li>Audio or saved recordings</li>
-              <li>Questions, transcripts, or spoken replies</li>
-              <li>Generated answers or prompts</li>
-              <li>Context, Project State, or screenshots</li>
+              <li>{deployment === "production"
+                ? "Questions, transcripts, or spoken replies"
+                : "No diagnostic content from ordinary or Production builds"}</li>
+              <li>{deployment === "production"
+                ? "Generated answers or prompts"
+                : "No full prompts, resume files, Context files, or screenshots"}</li>
+              <li>{deployment === "production"
+                ? "Context, Project State, or screenshots"
+                : "No data after the seven-day diagnostic retention window"}</li>
             </ul>
-            <p>Those remain on the user&rsquo;s Mac and are not sent to this database.</p>
+            <p>{deployment === "production"
+              ? "Those remain on the user’s Mac and are not sent to this database."
+              : "Only the allowlisted admin’s bounded turns and structured State are accepted from a development build."}</p>
           </section>
         </div>
       </div>

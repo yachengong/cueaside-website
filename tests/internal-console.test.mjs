@@ -246,3 +246,46 @@ test("Console inspects every monthly usage counter and subscription lifecycle", 
   assert.match(storage, /current_period_end/);
   assert.match(storage, /cancel_at_period_end/);
 });
+
+test("development session diagnostics are admin-only, short-lived, and absent from Production", async () => {
+  const [page, route, handler, storage, migration] =
+    await Promise.all([
+      source("app/internal/page.tsx"),
+      source("app/api/internal/diagnostics/session-snapshot/route.ts"),
+      source("lib/server/internal-session-diagnostics.ts"),
+      source("lib/server/supabase.ts"),
+      source("supabase/migrations/20260807152132_internal_session_diagnostics.sql"),
+    ]);
+
+  assert.match(route, /const user = await requireUser\(request\)/);
+  assert.match(handler, /deploymentEnvironment\(\) === "production"/);
+  assert.match(handler, /configuredInternalAdminUserIDs\(\)\.has/);
+  assert.match(handler, /readJSON<unknown>\(request, 96_000\)/);
+  assert.match(handler, /maximum: 180/);
+  assert.match(handler, /pseudonymousIdentifier\(`internal-session:\$\{sessionId\}`\)/);
+  assert.match(handler, /value\.length > 3/);
+  assert.match(storage, /insertInternalSessionDiagnosticSnapshot/);
+  assert.match(storage, /recentInternalSessionDiagnosticSnapshots/);
+  assert.match(storage, /session_diagnostics_production_disabled/);
+
+  assert.match(migration, /internal_session_diagnostic_snapshots/);
+  assert.match(migration, /deployment in \('preview', 'development'\)/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /revoke all[\s\S]*from public, anon, authenticated/);
+  assert.match(migration, /grant select, insert, delete[\s\S]*to service_role/);
+  assert.match(migration, /security invoker/i);
+  assert.doesNotMatch(migration, /security definer/i);
+  assert.match(migration, /interval '7 days'/);
+  assert.match(migration, /expires_at < now\(\)/);
+
+  assert.match(page, /Session timeline/);
+  assert.match(page, /State Inspector/);
+  assert.match(page, /Seed facts/);
+  assert.match(page, /Canonical project facts/);
+  assert.match(page, /Temporary claims/);
+  assert.match(page, /Foreign project mentions/);
+  assert.match(page, /Rejected claims/);
+  assert.match(page, /deployment !== "production"/);
+  assert.match(page, /Diagnostic content expires after seven days/);
+
+});

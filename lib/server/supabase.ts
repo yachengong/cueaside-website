@@ -135,6 +135,69 @@ export interface InternalTranscriptionDiagnosticRow {
   silence_threshold_ppm: number | null;
 }
 
+export interface InternalSessionDiagnosticFact {
+  key: string;
+  value: string;
+  category: string;
+  status: "confirmed" | "speakingCommitment" | "reported" | "tentative";
+  source: "rawContext" | "generatedAnswer" | "transcript" | "userCorrection";
+  topics: string[];
+  sourceTurnId: string | null;
+  updatedAt: string;
+}
+
+export interface InternalSessionDiagnosticTurn {
+  turnId: string;
+  question: string;
+  suggestedAnswer: string;
+  spokenReply: string;
+}
+
+export interface InternalSessionDiagnosticScenario {
+  id: string;
+  triggerQuestion: string;
+  facts: InternalSessionDiagnosticFact[];
+  updatedAt: string;
+}
+
+export interface InternalSessionDiagnosticRejections {
+  conflicts: string[];
+  projectMismatches: string[];
+  invalid: string[];
+}
+
+export interface InternalSessionDiagnosticSnapshot {
+  activeProjectId: string;
+  stateUpdatedAt: string | null;
+  estimatedInputTokens: number | null;
+  seedFacts: InternalSessionDiagnosticFact[];
+  canonicalFacts: InternalSessionDiagnosticFact[];
+  scenarioState: InternalSessionDiagnosticScenario | null;
+  temporaryClaims: InternalSessionDiagnosticFact[];
+  foreignProjectMentions: InternalSessionDiagnosticFact[];
+  recentTurns: InternalSessionDiagnosticTurn[];
+  rejectedClaims: InternalSessionDiagnosticRejections;
+}
+
+export interface InternalSessionDiagnosticRow {
+  id: number;
+  admin_user_id: string;
+  deployment: "preview" | "development";
+  session_key: string;
+  active_project_id: string;
+  state_updated_at: string | null;
+  estimated_input_tokens: number | null;
+  seed_facts: InternalSessionDiagnosticFact[];
+  canonical_facts: InternalSessionDiagnosticFact[];
+  scenario_state: InternalSessionDiagnosticScenario | null;
+  temporary_claims: InternalSessionDiagnosticFact[];
+  foreign_project_mentions: InternalSessionDiagnosticFact[];
+  recent_turns: InternalSessionDiagnosticTurn[];
+  rejected_claims: InternalSessionDiagnosticRejections;
+  recorded_at: string;
+  expires_at: string;
+}
+
 function adminURL(path: string): string {
   return `${requireRuntimeValue(
     "SUPABASE_URL",
@@ -480,6 +543,75 @@ export async function recentInternalTranscriptionDiagnostics(input: {
   return adminRequest<InternalTranscriptionDiagnosticRow[]>(
     `transcription_diagnostic_metrics?recorded_at=gte.${since}`
       + `&select=${select}&order=recorded_at.desc,id.desc&limit=${limit}`,
+  );
+}
+
+export async function insertInternalSessionDiagnosticSnapshot(input: {
+  adminUserId: string;
+  sessionKey: string;
+  snapshot: InternalSessionDiagnosticSnapshot;
+}): Promise<void> {
+  const deployment = deploymentEnvironment();
+  if (deployment === "production") {
+    throw new ServiceError(
+      "Session diagnostics are disabled in Production.",
+      403,
+      "session_diagnostics_production_disabled",
+    );
+  }
+  await adminRequest("internal_session_diagnostic_snapshots", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      admin_user_id: input.adminUserId,
+      deployment,
+      session_key: input.sessionKey,
+      active_project_id: input.snapshot.activeProjectId,
+      state_updated_at: input.snapshot.stateUpdatedAt,
+      estimated_input_tokens: input.snapshot.estimatedInputTokens,
+      seed_facts: input.snapshot.seedFacts,
+      canonical_facts: input.snapshot.canonicalFacts,
+      scenario_state: input.snapshot.scenarioState,
+      temporary_claims: input.snapshot.temporaryClaims,
+      foreign_project_mentions: input.snapshot.foreignProjectMentions,
+      recent_turns: input.snapshot.recentTurns,
+      rejected_claims: input.snapshot.rejectedClaims,
+    }),
+  });
+}
+
+export async function recentInternalSessionDiagnosticSnapshots(input: {
+  limit?: number;
+  sessionKey?: string;
+} = {}): Promise<InternalSessionDiagnosticRow[]> {
+  const limit = Math.min(250, Math.max(1, Math.floor(input.limit ?? 100)));
+  const query = new URLSearchParams({
+    select: [
+      "id",
+      "admin_user_id",
+      "deployment",
+      "session_key",
+      "active_project_id",
+      "state_updated_at",
+      "estimated_input_tokens",
+      "seed_facts",
+      "canonical_facts",
+      "scenario_state",
+      "temporary_claims",
+      "foreign_project_mentions",
+      "recent_turns",
+      "rejected_claims",
+      "recorded_at",
+      "expires_at",
+    ].join(","),
+    order: "recorded_at.desc,id.desc",
+    limit: String(limit),
+  });
+  if (input.sessionKey && /^[a-f0-9]{64}$/.test(input.sessionKey)) {
+    query.set("session_key", `eq.${input.sessionKey}`);
+  }
+  return adminRequest<InternalSessionDiagnosticRow[]>(
+    `internal_session_diagnostic_snapshots?${query.toString()}`,
   );
 }
 

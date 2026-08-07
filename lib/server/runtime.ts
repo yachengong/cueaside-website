@@ -22,8 +22,10 @@ export interface CueAsideRuntime {
 export {
   deploymentEnvironment,
   publicSiteURL,
+  supabaseEnvironmentIsolation,
   type CueAsideDeploymentEnvironment,
 } from "../deployment-environment";
+import { supabaseEnvironmentIsolation } from "../deployment-environment";
 
 export function runtime(): CueAsideRuntime {
   return process.env as CueAsideRuntime;
@@ -36,6 +38,19 @@ export function requireRuntimeValue(
   const value = runtime()[key];
   if (typeof value !== "string" || !value.trim()) {
     throw new ServiceError(message, 503, "service_not_configured");
+  }
+  if (key === "SUPABASE_URL") {
+    const isolation = supabaseEnvironmentIsolation({
+      VERCEL_ENV: runtime().VERCEL_ENV,
+      SUPABASE_URL: value,
+    });
+    if (!isolation.ok) {
+      throw new ServiceError(
+        "This deployment is not connected to an isolated data environment.",
+        503,
+        "environment_not_isolated",
+      );
+    }
   }
   return value.trim();
 }

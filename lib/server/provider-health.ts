@@ -2,6 +2,7 @@ import { observeExternalCall } from "@/lib/server/observability";
 import {
   publicSiteURL,
   runtime,
+  supabaseEnvironmentIsolation,
   type CueAsideRuntime,
 } from "@/lib/server/runtime";
 
@@ -44,6 +45,7 @@ function shaped(
 }
 
 export function providerShapeChecks(env: CueAsideRuntime = runtime()) {
+  const supabaseIsolation = supabaseEnvironmentIsolation(env);
   return {
     SUPABASE_URL: shaped(
       env.SUPABASE_URL,
@@ -60,6 +62,10 @@ export function providerShapeChecks(env: CueAsideRuntime = runtime()) {
       (value) => value.startsWith("eyJ") || value.startsWith("sb_secret_"),
       "expected a JWT (eyJ…) or sb_secret_… key",
     ),
+    SUPABASE_ENVIRONMENT: {
+      ok: supabaseIsolation.ok,
+      ...(supabaseIsolation.ok ? {} : { hint: supabaseIsolation.hint }),
+    },
     STRIPE_SECRET_KEY: shaped(
       env.STRIPE_SECRET_KEY,
       (value) => /^(sk|rk)_(live|test)_/.test(value),
@@ -93,7 +99,10 @@ export function configuredServiceReadiness(
   checks = providerShapeChecks(env),
 ) {
   return {
-    auth: checks.SUPABASE_URL.ok && checks.SUPABASE_ANON_KEY.ok,
+    auth:
+      checks.SUPABASE_URL.ok &&
+      checks.SUPABASE_ANON_KEY.ok &&
+      checks.SUPABASE_ENVIRONMENT.ok,
     googleSignIn: env.AUTH_GOOGLE_ENABLED === "true",
     appleSignIn: env.AUTH_APPLE_ENABLED === "true",
     billing:
@@ -101,7 +110,10 @@ export function configuredServiceReadiness(
       checks.STRIPE_WEBHOOK_SECRET.ok &&
       checks.STRIPE_PRICE_ID.ok,
     ai: checks.OPENAI_API_KEY.ok && checks.DEEPGRAM_API_KEY.ok,
-    storage: checks.SUPABASE_URL.ok && checks.SUPABASE_SERVICE_ROLE_KEY.ok,
+    storage:
+      checks.SUPABASE_URL.ok &&
+      checks.SUPABASE_SERVICE_ROLE_KEY.ok &&
+      checks.SUPABASE_ENVIRONMENT.ok,
   };
 }
 
@@ -144,24 +156,33 @@ export async function liveProviderProbes(
   env: CueAsideRuntime = runtime(),
 ): Promise<LiveProviderHealth> {
   const supabaseBase = (env.SUPABASE_URL ?? "").replace(/\/+$/, "");
+  const supabaseIsolation = supabaseEnvironmentIsolation(env);
+  const blockedSupabaseProbe = Promise.resolve<ProviderProbe>({
+    ok: false,
+    status: "environment_blocked",
+  });
   const stripeKey = env.STRIPE_SECRET_KEY ?? "";
   const stripeHeaders = { Authorization: `Bearer ${stripeKey}` };
 
   const [supabaseAuth, supabaseAdmin, stripe, stripeWebhook, openai, deepgram] =
     await Promise.all([
-      probe("supabase", `${supabaseBase}/auth/v1/health`, {
-        headers: { apikey: env.SUPABASE_ANON_KEY ?? "" },
-      }),
-      probe(
-        "supabase",
-        `${supabaseBase}/rest/v1/billing_accounts?select=user_id&limit=1`,
-        {
-          headers: {
-            apikey: env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-            Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
-          },
-        },
-      ),
+      supabaseIsolation.ok
+        ? probe("supabase", `${supabaseBase}/auth/v1/health`, {
+            headers: { apikey: env.SUPABASE_ANON_KEY ?? "" },
+          })
+        : blockedSupabaseProbe,
+      supabaseIsolation.ok
+        ? probe(
+            "supabase",
+            `${supabaseBase}/rest/v1/billing_accounts?select=user_id&limit=1`,
+            {
+              headers: {
+                apikey: env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+                Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
+              },
+            },
+          )
+        : blockedSupabaseProbe,
       (async (): Promise<StripeProbe> => {
         try {
           const price = encodeURIComponent(env.STRIPE_PRICE_ID ?? "");

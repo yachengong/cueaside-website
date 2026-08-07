@@ -132,6 +132,10 @@ it deliberately.
 ### Credential or environment crossover
 
 - Disable the affected Preview or Production route.
+- The server rejects Production Supabase outside Vercel Production and rejects
+  any other Supabase project inside Production. A Preview `503`
+  `environment_not_isolated` is expected until a separate development project
+  is configured; do not bypass this protection by reusing Production.
 - Follow `CUEASIDE_ENVIRONMENT_RUNBOOK.md` in the macOS repository.
 - Rotate the credential in the provider, update only its intended Vercel
   scope, redeploy, verify, then revoke the old credential.

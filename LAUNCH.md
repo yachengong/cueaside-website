@@ -50,29 +50,9 @@ to. When membership is active, in Xcode → Settings → Accounts create a
 **Developer ID Application** certificate (the existing
 "Apple Development" cert cannot distribute).
 
-Tell Claude when this is done — the archive → sign → notarize → staple →
-DMG pipeline and the Sparkle auto-update integration are queued behind
-this one credential and can be built and run for you the same day.
-
-## 3b. Shipping the beta WITHOUT the Developer Program
-
-You can run the private beta today. Build it:
-
-```bash
-cd ~/Desktop/SideCue && ./Tools/build_beta_dmg.sh
-```
-
-That produces `build/SideCue-beta-<version>-<stamp>.dmg`, a `.txt` receipt
-with its SHA-256, and preserved dSYMs in `build/dsyms/` (keep these — they
-are the only way to read a crash report from that build).
-
-The DMG is ad-hoc signed with hardened runtime but **not notarized**, so
-macOS blocks the first launch. Testers follow
-[cueaside.com/install](https://cueaside.com/install/) — right-click → Open,
-then the two permissions. Send that link with the DMG in the invite email.
-
-When the Developer ID certificate exists, this script gets replaced by a
-notarized pipeline and the /install page goes away.
+When this is done, run the archive → sign → notarize → staple → DMG pipeline
+and configure the signed update feed. Do not distribute the locally verified
+ad-hoc DMG; CueAside has no unsigned private-beta release path.
 
 ## 4. Third-party monitoring accounts
 
@@ -94,7 +74,7 @@ notarized pipeline and the /install page goes away.
 - Refund window wording beyond the current "we fix billing mistakes".
 - Whether macOS 15.3+ stays the floor, or you lower the deployment
   target after testing on 15.0–15.2.
-- Beta list: the 10–20 people for the private week.
+- Initial rollout list for the signed, notarized release.
 
 ## Already done (for reference)
 
@@ -110,4 +90,5 @@ notarized pipeline and the /install page goes away.
   subscription, drops billing/usage rows, deletes the auth identity.
 - Sentry wired for server, edge and browser; inert until a DSN is set.
 - Vercel Web Analytics component in the layout (activate via the toggle).
-- Beta DMG pipeline + `/install` guide (see 3b) — verified end to end.
+- Local DMG packaging was verified for engineering only. It is not a
+  distributable release until Developer ID signing and Apple notarization pass.

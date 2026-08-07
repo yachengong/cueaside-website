@@ -157,17 +157,20 @@ test("keeps the waitlist as the only conversion path", async () => {
   assert.match(home, /href="\/terms\/"/);
 });
 
-test("exposes a beta download only through validated public configuration", async () => {
-  const [access, config] = await Promise.all([
-    source("app/beta-access.tsx"),
-    source("lib/public-beta.ts"),
+test("does not expose an unsigned private-beta download path", async () => {
+  const [home, install, env] = await Promise.all([
+    rendered("index.html"),
+    rendered("install.html"),
+    source(".env.example"),
   ]);
 
-  assert.match(access, /Download CueAside beta/);
-  assert.match(access, /EarlyAccessForm/);
-  assert.match(config, /CUEASIDE_BETA_DOWNLOAD_URL/);
-  assert.match(config, /url\.protocol !== "https:"/);
-  assert.match(config, /\^\[a-f0-9\]\{64\}\$/);
+  assert.doesNotMatch(home, /Download CueAside beta/);
+  assert.doesNotMatch(home, /private beta/i);
+  assert.match(home, /signed, notarized macOS release link/);
+  assert.match(install, /public installer is not available yet/i);
+  assert.match(install, /not distributing an unsigned or ad-hoc-signed private beta/i);
+  assert.doesNotMatch(install, /Open Anyway/);
+  assert.doesNotMatch(env, /CUEASIDE_BETA_/);
 });
 
 test("renders the trust pages", async () => {
@@ -278,15 +281,17 @@ test("keeps thinking-depth model routing explicit and enables Sol Fast", async (
   assert.match(openai, /service_tier: profile\.serviceTier/);
 });
 
-test("the beta install guide is honest about the unsigned build", async () => {
+test("the install page withholds downloads until the notarized release", async () => {
   const install = await rendered("install.html");
 
-  assert.match(install, /not notarized by Apple/);
-  assert.match(install, /right-click|Right-click/);
+  assert.match(install, /public installer is not available yet/i);
+  assert.match(install, /signed with a Developer ID certificate and notarized by Apple/i);
+  assert.match(install, /Join the list/);
+  assert.doesNotMatch(install, /right-click|Right-click|Open Anyway/);
   assert.match(install, /macOS 15\.3 or later/);
   // Permissions must be named with their reason, not just requested.
   assert.match(install, /Microphone/);
   assert.match(install, /Accessibility/);
-  // Beta instructions must stay out of search results while they apply.
+  // The release-status page stays out of search results until downloads open.
   assert.match(install, /noindex/);
 });

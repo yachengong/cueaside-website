@@ -5,6 +5,7 @@ import {
   usageFor,
 } from "@/lib/server/billing";
 import { errorResponse } from "@/lib/server/runtime";
+import { deleteCueAsideAccount } from "@/lib/server/account-deletion";
 import {
   billingAccountFor,
   deleteAuthUser,
@@ -47,13 +48,12 @@ export async function DELETE(request: Request) {
   try {
     const user = await requireUser(request);
 
-    const account = await billingAccountFor(user.id);
-    if (account?.stripe_subscription_id) {
-      await cancelStripeSubscriptionImmediately(account.stripe_subscription_id);
-    }
-
-    await deleteUserData(user.id);
-    await deleteAuthUser(user.id);
+    await deleteCueAsideAccount(user.id, {
+      billingAccountFor,
+      cancelStripeSubscriptionImmediately,
+      deleteUserData,
+      deleteAuthUser,
+    });
 
     return Response.json(
       { deleted: true },

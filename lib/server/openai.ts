@@ -44,8 +44,12 @@ async function openAIHeaders(userId: string): Promise<HeadersInit> {
 
 async function authorizeAI(user: CueAsideUser, kind: UsageKind) {
   const entitlement = await requireEntitlement(user.id);
-  if (entitlement.bypass) return;
-  await recordUsage(user.id, kind, entitlement.plan);
+  await recordUsage(
+    user.id,
+    kind,
+    entitlement.plan,
+    entitlement.bypass,
+  );
 }
 
 type ResponseProxyBody = {

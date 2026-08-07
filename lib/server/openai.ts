@@ -7,6 +7,7 @@ import {
   requireRuntimeValue,
 } from "./runtime";
 import { enforceAccountRateLimit } from "./rate-limit";
+import { observeExternalCall } from "./observability";
 
 const DEPTHS = {
   instinct: {
@@ -135,26 +136,28 @@ export async function proxyAnswer(
     windowSeconds: 5 * 60,
   });
   await authorizeAI(user, "answerRequests");
-  const upstream = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: await openAIHeaders(user.id),
-    body: JSON.stringify({
-      model: profile.model,
-      instructions,
-      input,
-      store: false,
-      stream: true,
-      max_output_tokens: maxOutputTokens,
-      reasoning: { effort: profile.effort },
-      ...(profile.serviceTier
-        ? { service_tier: profile.serviceTier }
-        : {}),
+  const upstream = await observeExternalCall(
+    { service: "openai", operation: "answer" },
+    async () => fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: await openAIHeaders(user.id),
+      body: JSON.stringify({
+        model: profile.model,
+        instructions,
+        input,
+        store: false,
+        stream: true,
+        max_output_tokens: maxOutputTokens,
+        reasoning: { effort: profile.effort },
+        ...(profile.serviceTier
+          ? { service_tier: profile.serviceTier }
+          : {}),
+      }),
     }),
-  });
+  );
 
   if (!upstream.ok) {
-    const detail = await upstream.text();
-    console.error("OpenAI answer error", upstream.status, detail.slice(0, 1_000));
+    await upstream.body?.cancel();
     throw new ServiceError(
       "The answer service is temporarily unavailable.",
       upstream.status === 429 ? 429 : 502,
@@ -303,10 +306,12 @@ export async function checkSpokenReply(
     windowSeconds: 5 * 60,
   });
 
-  const upstream = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: await openAIHeaders(user.id),
-    body: JSON.stringify({
+  const upstream = await observeExternalCall(
+    { service: "openai", operation: "reply_check" },
+    async () => fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: await openAIHeaders(user.id),
+      body: JSON.stringify({
       model: "gpt-5.6-luna",
       instructions: [
         "You are a conservative live spoken-reply fact checker.",
@@ -359,8 +364,9 @@ export async function checkSpokenReply(
           },
         },
       },
+      }),
     }),
-  });
+  );
 
   const payload = (await upstream.json().catch(() => ({}))) as {
     output?: Array<{
@@ -369,7 +375,6 @@ export async function checkSpokenReply(
     }>;
   };
   if (!upstream.ok) {
-    console.error("OpenAI reply check error", upstream.status);
     throw new ServiceError(
       "The reply checker is temporarily unavailable.",
       upstream.status === 429 ? 429 : 502,
@@ -449,24 +454,22 @@ export async function proxyTranscription(
   });
   await authorizeAI(user, "transcriptionRequests");
 
-  const upstream = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${requireRuntimeValue(
-        "OPENAI_API_KEY",
-        "AI service is not configured yet.",
-      )}`,
-      "OpenAI-Safety-Identifier": await pseudonymousIdentifier(user.id),
-    },
-    body: outgoing,
-  });
+  const upstream = await observeExternalCall(
+    { service: "openai", operation: "transcription" },
+    async () => fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${requireRuntimeValue(
+          "OPENAI_API_KEY",
+          "AI service is not configured yet.",
+        )}`,
+        "OpenAI-Safety-Identifier": await pseudonymousIdentifier(user.id),
+      },
+      body: outgoing,
+    }),
+  );
   const responseBody = await upstream.arrayBuffer();
   if (!upstream.ok) {
-    console.error(
-      "OpenAI transcription error",
-      upstream.status,
-      new TextDecoder().decode(responseBody).slice(0, 1_000),
-    );
     throw new ServiceError(
       "Transcription is temporarily unavailable.",
       upstream.status === 429 ? 429 : 502,
@@ -508,32 +511,30 @@ export async function createRealtimeToken(
     transcription.language = body.language;
   }
 
-  const upstream = await fetch(
-    "https://api.openai.com/v1/realtime/client_secrets",
-    {
-      method: "POST",
-      headers: await openAIHeaders(user.id),
-      body: JSON.stringify({
-        session: {
-          type: "transcription",
-          audio: {
-            input: {
-              format: { type: "audio/pcm", rate: 24_000 },
-              transcription,
-              turn_detection: null,
+  const upstream = await observeExternalCall(
+    { service: "openai", operation: "realtime_token" },
+    async () => fetch(
+      "https://api.openai.com/v1/realtime/client_secrets",
+      {
+        method: "POST",
+        headers: await openAIHeaders(user.id),
+        body: JSON.stringify({
+          session: {
+            type: "transcription",
+            audio: {
+              input: {
+                format: { type: "audio/pcm", rate: 24_000 },
+                transcription,
+                turn_detection: null,
+              },
             },
           },
-        },
-      }),
-    },
+        }),
+      },
+    ),
   );
   const payload = await upstream.text();
   if (!upstream.ok) {
-    console.error(
-      "OpenAI Realtime token error",
-      upstream.status,
-      payload.slice(0, 1_000),
-    );
     throw new ServiceError(
       "Realtime transcription is temporarily unavailable.",
       upstream.status === 429 ? 429 : 502,

@@ -1,5 +1,17 @@
 import * as Sentry from "@sentry/nextjs";
 
+function scrubConversationData<T extends Sentry.Event>(event: T): T {
+  const method = event.request?.method;
+  // Route and transaction names already identify the failing endpoint. Keep
+  // only the method and discard bodies, headers, cookies, query strings,
+  // breadcrumbs, user objects, and arbitrary extra fields.
+  event.request = method ? { method } : undefined;
+  event.breadcrumbs = undefined;
+  event.extra = undefined;
+  event.user = undefined;
+  return event;
+}
+
 /**
  * Server and edge error reporting. Inert until SENTRY_DSN is set in the
  * environment, so local dev and the static export never phone home.
@@ -20,6 +32,8 @@ export async function register() {
     release: process.env.VERCEL_GIT_COMMIT_SHA,
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
+    beforeSend: scrubConversationData,
+    beforeSendTransaction: scrubConversationData,
   });
 }
 

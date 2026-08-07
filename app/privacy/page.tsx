@@ -160,13 +160,15 @@ export default function PrivacyPolicy() {
         <section>
           <h2>Deleting your data</h2>
           <p>
-            Account deletion is one call to our API: it cancels any active
-            subscription immediately, removes your billing record and usage
-            counters, and deletes your sign-in identity. You can also email{" "}
+            Account deletion is one confirmed call to our API: it cancels any
+            active subscription immediately, removes your Stripe customer and
+            stored payment methods, deletes your billing record, usage counters,
+            and waitlist entry, revokes your sessions, and deletes your sign-in
+            identity. You can also email{" "}
             <a href="mailto:support@cueaside.com">support@cueaside.com</a> from
-            your account address and we will run the same deletion for you,
-            along with any waitlist entry. Session content is deleted directly
-            from the app, since it is stored on your Mac.
+            your account address and we will run the same deletion for you.
+            Session content is deleted directly from the app, since it is
+            stored on your Mac.
           </p>
         </section>
 

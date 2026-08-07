@@ -1,11 +1,17 @@
-import { requireUser } from "@/lib/server/auth";
+import {
+  requireAccessToken,
+  requireUser,
+  revokeUserSessions,
+} from "@/lib/server/auth";
 import {
   cancelStripeSubscriptionImmediately,
+  deleteStripeCustomer,
   entitlementFor,
   usageFor,
 } from "@/lib/server/billing";
-import { errorResponse } from "@/lib/server/runtime";
+import { errorResponse, readJSON, ServiceError } from "@/lib/server/runtime";
 import { deleteCueAsideAccount } from "@/lib/server/account-deletion";
+import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/server/account-deletion-policy";
 import {
   billingAccountFor,
   deleteAuthUser,
@@ -41,19 +47,37 @@ export async function GET(request: Request) {
 
 /**
  * Self-serve account deletion, in the order that protects the user:
- * stop billing first, then remove our rows, then the auth identity.
- * Idempotent — deleting an already-deleted account succeeds.
+ * stop billing and remove the Stripe customer first, then remove our rows,
+ * revoke refresh sessions, and finally remove the auth identity.
  */
 export async function DELETE(request: Request) {
   try {
+    const accessToken = requireAccessToken(request);
     const user = await requireUser(request);
+    const body = await readJSON<{ confirmation?: string }>(request, 1_000);
+    if (body.confirmation !== ACCOUNT_DELETION_CONFIRMATION) {
+      throw new ServiceError(
+        "Confirm account deletion before continuing.",
+        400,
+        "deletion_confirmation_required",
+      );
+    }
 
-    await deleteCueAsideAccount(user.id, {
-      billingAccountFor,
-      cancelStripeSubscriptionImmediately,
-      deleteUserData,
-      deleteAuthUser,
-    });
+    await deleteCueAsideAccount(
+      {
+        userId: user.id,
+        email: user.email,
+        accessToken,
+      },
+      {
+        billingAccountFor,
+        cancelStripeSubscriptionImmediately,
+        deleteStripeCustomer,
+        deleteUserData,
+        revokeUserSessions,
+        deleteAuthUser,
+      },
+    );
 
     return Response.json(
       { deleted: true },

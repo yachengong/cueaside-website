@@ -208,10 +208,24 @@ test("hardens public authentication entry points", async () => {
 });
 
 test("keeps account and billing responses compatible with the macOS app", async () => {
-  const [account, auth, billing, usagePolicy] = await Promise.all([
+  const [
+    account,
+    accountDeletion,
+    deletionPolicy,
+    auth,
+    billing,
+    storage,
+    usagePolicy,
+  ] = await Promise.all([
     readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/account-deletion.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../lib/server/account-deletion-policy.ts", import.meta.url),
+      "utf8",
+    ),
     readFile(new URL("../lib/server/auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/server/billing.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/supabase.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/server/usage-policy.ts", import.meta.url), "utf8"),
   ]);
 
@@ -222,15 +236,17 @@ test("keeps account and billing responses compatible with the macOS app", async 
   assert.doesNotMatch(billing, /return_url:.*\/account\//);
   assert.match(billing, /plan: paid \? "pro" : "free"/);
 
-  // Self-serve deletion must exist and run in the safe order:
-  // cancel billing, then our rows, then the auth identity.
+  // Self-serve deletion requires an explicit confirmation and delegates to a
+  // directly tested workflow instead of relying on import order in the route.
   assert.match(account, /export async function DELETE/);
-  const deleteBody = account.slice(account.indexOf("export async function DELETE"));
-  const cancelAt = deleteBody.indexOf("cancelStripeSubscriptionImmediately");
-  const dataAt = deleteBody.indexOf("deleteUserData");
-  const authAt = deleteBody.indexOf("deleteAuthUser");
-  assert.ok(cancelAt !== -1 && dataAt !== -1 && authAt !== -1);
-  assert.ok(cancelAt < dataAt && dataAt < authAt, "deletion order is cancel -> data -> auth");
+  assert.match(account, /ACCOUNT_DELETION_CONFIRMATION/);
+  assert.match(account, /deleteCueAsideAccount/);
+  assert.match(accountDeletion, /deleteStripeCustomer/);
+  assert.match(accountDeletion, /revokeUserSessions/);
+  assert.match(deletionPolicy, /\/auth\/v1\/logout\?scope=global/);
+  assert.match(deletionPolicy, /waitlist_signups\?email=eq\./);
+  assert.match(auth, /ACCOUNT_DELETION_LOGOUT_PATH/);
+  assert.match(storage, /accountDataDeletionPaths/);
   assert.match(usagePolicy, /answerRequests: 15/);
   assert.match(usagePolicy, /answerRequests: 200/);
   assert.match(account, /usageFor/);

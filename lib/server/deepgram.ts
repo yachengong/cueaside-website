@@ -19,9 +19,12 @@ export async function createDeepgramToken(
     maximum: 40,
     windowSeconds: 5 * 60,
   });
-  if (!entitlement.bypass) {
-    await recordUsage(user.id, "realtimeTokens", entitlement.plan);
-  }
+  await recordUsage(
+    user.id,
+    "realtimeTokens",
+    entitlement.plan,
+    entitlement.bypass,
+  );
 
   const upstream = await fetch("https://api.deepgram.com/v1/auth/grant", {
     method: "POST",

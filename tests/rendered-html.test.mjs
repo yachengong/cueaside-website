@@ -128,7 +128,10 @@ test("guards every AI route with authentication, usage, and burst limits", async
     assert.match(openai, new RegExp(usageKind.replace(/[()]/g, "\\$&")));
   }
   assert.match(deepgram, /scope: "deepgram-token"/);
-  assert.match(deepgram, /recordUsage\(user\.id, "realtimeTokens"/);
+  assert.match(
+    deepgram,
+    /recordUsage\([\s\S]*user\.id[\s\S]*"realtimeTokens"[\s\S]*entitlement\.bypass/,
+  );
   assert.match(deepgram, /ttl_seconds: 5 \* 60/);
 
   const transcription = openai.slice(openai.indexOf("export async function proxyTranscription"));
@@ -205,10 +208,11 @@ test("hardens public authentication entry points", async () => {
 });
 
 test("keeps account and billing responses compatible with the macOS app", async () => {
-  const [account, auth, billing] = await Promise.all([
+  const [account, auth, billing, usagePolicy] = await Promise.all([
     readFile(new URL("../app/api/account/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/server/auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/server/billing.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/server/usage-policy.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(account, /name: user\.name/);
@@ -227,8 +231,8 @@ test("keeps account and billing responses compatible with the macOS app", async 
   const authAt = deleteBody.indexOf("deleteAuthUser");
   assert.ok(cancelAt !== -1 && dataAt !== -1 && authAt !== -1);
   assert.ok(cancelAt < dataAt && dataAt < authAt, "deletion order is cancel -> data -> auth");
-  assert.match(billing, /answerRequests: 15/);
-  assert.match(billing, /answerRequests: 200/);
+  assert.match(usagePolicy, /answerRequests: 15/);
+  assert.match(usagePolicy, /answerRequests: 200/);
   assert.match(account, /usageFor/);
   assert.match(account, /entitlement\.bypass/);
 });
@@ -251,7 +255,8 @@ test("uses monthly plan-aware usage instead of subscription-only access", async 
   assert.match(billing, /current\.paid/);
   assert.match(storage, /consume_monthly_usage/);
   assert.match(migration, /primary key \(user_id, period_start\)/);
-  assert.match(openai, /if \(entitlement\.bypass\) return/);
+  assert.match(openai, /recordUsage\([\s\S]*entitlement\.bypass/);
+  assert.match(billing, /usageDecision\(plan, kind, unlimited\)/);
   assert.match(billing, /unlimited: boolean/);
   assert.doesNotMatch(openai, /recordUsage\(user\.id, kind\);/);
 });

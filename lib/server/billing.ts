@@ -14,6 +14,14 @@ import {
   stripeEventExists,
   upsertBillingAccount,
 } from "./supabase";
+import {
+  PLAN_USAGE_LIMITS,
+  PlanId,
+  UsageKind,
+  usageDecision,
+} from "./usage-policy";
+
+export type { PlanId, UsageKind } from "./usage-policy";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
@@ -231,26 +239,6 @@ export async function createPortal(user: CueAsideUser): Promise<string> {
   return url;
 }
 
-export type UsageKind =
-  | "answerRequests"
-  | "transcriptionRequests"
-  | "realtimeTokens";
-
-export type PlanId = "free" | "pro";
-
-const PLAN_USAGE_LIMITS: Record<PlanId, Record<UsageKind, number>> = {
-  free: {
-    answerRequests: 15,
-    transcriptionRequests: 60,
-    realtimeTokens: 15,
-  },
-  pro: {
-    answerRequests: 200,
-    transcriptionRequests: 1_000,
-    realtimeTokens: 300,
-  },
-};
-
 const USAGE_COLUMNS: Record<
   UsageKind,
   "answer_requests" | "transcription_requests" | "realtime_tokens"
@@ -264,11 +252,15 @@ export async function recordUsage(
   userId: string,
   kind: UsageKind,
   plan: PlanId,
+  unlimited = false,
 ): Promise<void> {
+  const decision = usageDecision(plan, kind, unlimited);
+  if (decision.unlimited || decision.limit === null) return;
+
   const allowed = await consumeMonthlyUsage({
     userId,
     kind: USAGE_COLUMNS[kind],
-    limit: PLAN_USAGE_LIMITS[plan][kind],
+    limit: decision.limit,
   });
   if (!allowed) {
     throw new ServiceError(

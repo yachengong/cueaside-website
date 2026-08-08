@@ -804,6 +804,11 @@ test(
             status,
             http_status,
             duration_ms,
+            input_tokens,
+            cached_input_tokens,
+            output_tokens,
+            reasoning_tokens,
+            estimated_cost_micro_usd,
             pricing_version
           ) values (
             'production',
@@ -816,6 +821,11 @@ test(
             'failed',
             500,
             100,
+            0,
+            0,
+            0,
+            0,
+            0,
             '2026-07-30'
           )`,
         ),

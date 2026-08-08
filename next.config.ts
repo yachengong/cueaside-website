@@ -26,6 +26,16 @@ const nextConfig: NextConfig = {
                 },
               ],
             },
+            {
+              source: "/internal/:path*",
+              headers: [
+                {
+                  key: "X-Robots-Tag",
+                  value: "noindex, nofollow, noarchive",
+                },
+                { key: "Cache-Control", value: "private, no-store" },
+              ],
+            },
           ];
         },
       }),

@@ -1,4 +1,4 @@
-type ExternalService = "openai" | "deepgram" | "supabase";
+type ExternalService = "openai" | "deepgram" | "supabase" | "stripe";
 
 type ExternalOperation =
   | "answer"
@@ -7,7 +7,9 @@ type ExternalOperation =
   | "realtime_token"
   | "deepgram_grant"
   | "storage_request"
-  | "auth_delete";
+  | "auth_admin_request"
+  | "auth_delete"
+  | "provider_health";
 
 /**
  * Provider telemetry has a deliberately closed schema. Never add request or

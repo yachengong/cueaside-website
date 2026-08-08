@@ -28,9 +28,10 @@ test("renders the CueAside commercial landing page", async () => {
 });
 
 test("the ledger prints only what the schema actually stores", async () => {
-  const [home, schema] = await Promise.all([
+  const [home, schema, transcriptionMetrics] = await Promise.all([
     rendered("index.html"),
     source("supabase/migrations/202607290001_cueaside_commercial.sql"),
+    source("supabase/migrations/20260807150000_transcription_diagnostic_metrics.sql"),
   ]);
 
   // Rows claimed as kept must exist as real columns.
@@ -51,6 +52,13 @@ test("the ledger prints only what the schema actually stores", async () => {
   assert.match(home, /Your audio/);
   assert.match(home, /Your transcripts/);
   assert.match(home, /Your questions &amp; answers|Your questions & answers/);
+  assert.match(home, /Content-free performance diagnostics/);
+  assert.match(transcriptionMetrics, /duration_ms integer/);
+  assert.match(transcriptionMetrics, /peak_rms_ppm integer/);
+  assert.doesNotMatch(
+    transcriptionMetrics,
+    /^\s*(audio|transcript|question|answer|prompt|content|message|context|resume|note)\w*\s+(text|jsonb|json|bytea)/im,
+  );
 });
 
 test("the page makes no social-proof claims it cannot back", async () => {
@@ -82,6 +90,10 @@ test("exposes the commercial API routes", async () => {
     "/api/ai/deepgram-token/route",
     "/api/ai/realtime-token/route",
     "/api/auth/request-code/route",
+    "/api/internal/auth/request-code/route",
+    "/api/internal/auth/verify-code/route",
+    "/api/internal/auth/logout/route",
+    "/api/telemetry/transcription/route",
     "/api/waitlist/route",
   ]) {
     assert.ok(route in manifest, `missing route ${route}`);
@@ -154,17 +166,33 @@ test("keeps the waitlist as the only conversion path", async () => {
   assert.match(home, /href="\/terms\/"/);
 });
 
-test("exposes a beta download only through validated public configuration", async () => {
-  const [access, config] = await Promise.all([
-    source("app/beta-access.tsx"),
-    source("lib/public-beta.ts"),
+test("does not expose an unsigned private-beta download path", async () => {
+  const [home, install, env] = await Promise.all([
+    rendered("index.html"),
+    rendered("install.html"),
+    source(".env.example"),
   ]);
 
-  assert.match(access, /Download CueAside beta/);
-  assert.match(access, /EarlyAccessForm/);
-  assert.match(config, /CUEASIDE_BETA_DOWNLOAD_URL/);
-  assert.match(config, /url\.protocol !== "https:"/);
-  assert.match(config, /\^\[a-f0-9\]\{64\}\$/);
+  assert.doesNotMatch(home, /Download CueAside beta/);
+  assert.doesNotMatch(home, /private beta/i);
+  assert.match(home, /signed, notarized macOS release link/);
+  assert.match(install, /public installer is not available yet/i);
+  assert.match(install, /not distributing an unsigned or ad-hoc-signed private beta/i);
+  assert.doesNotMatch(install, /Open Anyway/);
+  assert.doesNotMatch(env, /CUEASIDE_BETA_/);
+});
+
+test("static publishing uses the same stable webpack build path as production", async () => {
+  const [script, packageJSON] = await Promise.all([
+    source("scripts/build-pages.mjs"),
+    source("package.json"),
+  ]);
+  assert.match(packageJSON, /"build": "next build --webpack"/);
+  assert.match(script, /"build",\s*"--webpack"/);
+  assert.match(script, /rm\(new URL\("\.\.\/\.next\/"/);
+  assert.match(script, /app\/api/);
+  assert.match(script, /app\/internal/);
+  assert.match(script, /movedDirectories\.reverse\(\)/);
 });
 
 test("renders the trust pages", async () => {
@@ -195,9 +223,10 @@ test("publishes search crawler discovery files", async () => {
 });
 
 test("hardens public authentication entry points", async () => {
-  const [rateLimit, auth] = await Promise.all([
+  const [rateLimit, auth, authConfig] = await Promise.all([
     readFile(new URL("../lib/server/rate-limit.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/server/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/config.toml", import.meta.url), "utf8"),
   ]);
 
   assert.match(rateLimit, /x-vercel-forwarded-for/);
@@ -205,6 +234,9 @@ test("hardens public authentication entry points", async () => {
   assert.match(auth, /invalid_oauth_state/);
   assert.match(auth, /callback\.searchParams\.set\("state", state\)/);
   assert.match(auth, /scope: "auth-refresh"/);
+  assert.match(auth, /create_user: true/);
+  assert.match(authConfig, /\[auth\][\s\S]*enable_signup = true/);
+  assert.match(authConfig, /\[auth\.email\][\s\S]*enable_signup = true/);
 });
 
 test("keeps account and billing responses compatible with the macOS app", async () => {
@@ -275,15 +307,17 @@ test("keeps thinking-depth model routing explicit and enables Sol Fast", async (
   assert.match(openai, /service_tier: profile\.serviceTier/);
 });
 
-test("the beta install guide is honest about the unsigned build", async () => {
+test("the install page withholds downloads until the notarized release", async () => {
   const install = await rendered("install.html");
 
-  assert.match(install, /not notarized by Apple/);
-  assert.match(install, /right-click|Right-click/);
+  assert.match(install, /public installer is not available yet/i);
+  assert.match(install, /signed with a Developer ID certificate and notarized by Apple/i);
+  assert.match(install, /Join the list/);
+  assert.doesNotMatch(install, /right-click|Right-click|Open Anyway/);
   assert.match(install, /macOS 15\.3 or later/);
   // Permissions must be named with their reason, not just requested.
   assert.match(install, /Microphone/);
   assert.match(install, /Accessibility/);
-  // Beta instructions must stay out of search results while they apply.
+  // The release-status page stays out of search results until downloads open.
   assert.match(install, /noindex/);
 });

@@ -6,6 +6,8 @@ email addresses, or provider response bodies into an incident ticket or chat.
 
 ## What is monitored
 
+- GitHub Actions runs the privacy-safe `Production uptime` smoke every 15
+  minutes and supports a manual run after every deployment
 - Vercel deployment state, runtime errors, status codes, and function latency
 - `/api/health` availability and dependency readiness
 - privacy-safe `external_call` records with only service, operation, HTTP
@@ -18,6 +20,21 @@ email addresses, or provider response bodies into an incident ticket or chat.
 
 The server must never log provider bodies. A network exception is represented
 as `status: 0`; an HTTP provider failure uses its numeric status.
+
+The scheduled smoke records only the check label, HTTP status, duration, and
+attempt count. It verifies the homepage, public health, unauthenticated AI
+rejection, and unauthenticated Console redirect. When the repository secret
+`CUEASIDE_HEALTH_PROBE_TOKEN` is configured, it also calls the private health
+probe and requires Supabase Auth, Supabase Admin, Stripe, the Stripe webhook,
+OpenAI, and Deepgram to be reachable. It also requires the production Stripe
+Price to be active, monthly, and in live mode. Without that secret, the deep
+probe is explicitly skipped while the public checks continue.
+
+Set `CUEASIDE_HEALTH_PROBE_TOKEN` to the same value as the Production-only
+Vercel `HEALTH_PROBE_TOKEN`. Add it as a GitHub Actions repository secret only
+after the live provider credentials and Stripe Price are ready. Never print,
+paste into workflow YAML, or expose this value to pull requests. Keep GitHub
+Actions failure notifications enabled for the repository owner.
 
 ## Suggested alerts
 
@@ -115,6 +132,10 @@ it deliberately.
 ### Credential or environment crossover
 
 - Disable the affected Preview or Production route.
+- The server rejects Production Supabase outside Vercel Production and rejects
+  any other Supabase project inside Production. A Preview `503`
+  `environment_not_isolated` is expected until a separate development project
+  is configured; do not bypass this protection by reusing Production.
 - Follow `CUEASIDE_ENVIRONMENT_RUNBOOK.md` in the macOS repository.
 - Rotate the credential in the provider, update only its intended Vercel
   scope, redeploy, verify, then revoke the old credential.

@@ -1,5 +1,9 @@
 export interface CueAsideRuntime {
   PUBLIC_SITE_URL?: string;
+  VERCEL_ENV?: string;
+  HEALTH_PROBE_TOKEN?: string;
+  SENTRY_DSN?: string;
+  NEXT_PUBLIC_SENTRY_DSN?: string;
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -12,7 +16,16 @@ export interface CueAsideRuntime {
   DEEPGRAM_API_KEY?: string;
   SAFETY_ID_SECRET?: string;
   BILLING_BYPASS_USER_IDS?: string;
+  CUEASIDE_ADMIN_USER_IDS?: string;
 }
+
+export {
+  deploymentEnvironment,
+  publicSiteURL,
+  supabaseEnvironmentIsolation,
+  type CueAsideDeploymentEnvironment,
+} from "../deployment-environment";
+import { supabaseEnvironmentIsolation } from "../deployment-environment";
 
 export function runtime(): CueAsideRuntime {
   return process.env as CueAsideRuntime;
@@ -25,6 +38,19 @@ export function requireRuntimeValue(
   const value = runtime()[key];
   if (typeof value !== "string" || !value.trim()) {
     throw new ServiceError(message, 503, "service_not_configured");
+  }
+  if (key === "SUPABASE_URL") {
+    const isolation = supabaseEnvironmentIsolation({
+      VERCEL_ENV: runtime().VERCEL_ENV,
+      SUPABASE_URL: value,
+    });
+    if (!isolation.ok) {
+      throw new ServiceError(
+        "This deployment is not connected to an isolated data environment.",
+        503,
+        "environment_not_isolated",
+      );
+    }
   }
   return value.trim();
 }
@@ -73,11 +99,6 @@ export async function readJSON<T>(
   } catch {
     throw new ServiceError("Request body must be valid JSON.", 400, "invalid_json");
   }
-}
-
-export function publicSiteURL(): string {
-  return runtime().PUBLIC_SITE_URL?.trim().replace(/\/+$/, "") ||
-    "https://cueaside.com";
 }
 
 export async function pseudonymousIdentifier(value: string): Promise<string> {

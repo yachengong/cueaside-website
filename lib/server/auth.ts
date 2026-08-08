@@ -1,4 +1,5 @@
 import {
+  deploymentEnvironment,
   ServiceError,
   readJSON,
   requireRuntimeValue,
@@ -126,8 +127,77 @@ async function supabaseJSON(
   return payload;
 }
 
+/**
+ * Server-side OTP helpers used by the private Console. They never persist a
+ * Supabase access or refresh token in the browser; callers exchange the OTP,
+ * verify the returned user id against a server allowlist, then create an
+ * independent opaque Console session.
+ */
+export async function requestExistingEmailCode(
+  email: string,
+  redirectTo?: string,
+): Promise<void> {
+  const path = new URL(supabaseURL("/auth/v1/otp"));
+  if (redirectTo) path.searchParams.set("redirect_to", redirectTo);
+  await supabaseJSON(`${path.pathname}${path.search}`, {
+    method: "POST",
+    body: JSON.stringify({ email, create_user: false }),
+  });
+}
+
+export async function verifyEmailCodeValue(
+  email: string,
+  token: string,
+): Promise<Record<string, unknown>> {
+  return supabaseJSON("/auth/v1/verify", {
+    method: "POST",
+    body: JSON.stringify({ type: "email", email, token }),
+  });
+}
+
+export async function userForAccessToken(
+  accessToken: string,
+): Promise<CueAsideUser> {
+  const result = await supabaseJSON(
+    "/auth/v1/user",
+    { method: "GET" },
+    accessToken,
+  );
+  const id = typeof result.id === "string" ? result.id : "";
+  if (!id) {
+    throw new ServiceError(
+      "Your sign-in link is invalid or expired.",
+      401,
+      "invalid_session",
+    );
+  }
+
+  const metadata =
+    result.user_metadata && typeof result.user_metadata === "object"
+      ? (result.user_metadata as Record<string, unknown>)
+      : {};
+  const name =
+    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
+    (typeof metadata.name === "string" && metadata.name.trim()) ||
+    null;
+  const avatarUrl =
+    (typeof metadata.avatar_url === "string" && metadata.avatar_url.trim()) ||
+    (typeof metadata.picture === "string" && metadata.picture.trim()) ||
+    null;
+
+  return {
+    id,
+    email: typeof result.email === "string" ? result.email : null,
+    name,
+    avatarUrl,
+  };
+}
+
 export async function requestEmailCode(request: Request): Promise<Response> {
-  const body = await readJSON<{ email?: string }>(request, 8_000);
+  const body = await readJSON<{ email?: string; state?: string }>(
+    request,
+    8_000,
+  );
   const email = body.email?.trim().toLowerCase() ?? "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new ServiceError(
@@ -144,13 +214,29 @@ export async function requestEmailCode(request: Request): Promise<Response> {
     windowSeconds: 15 * 60,
   });
 
-  await supabaseJSON("/auth/v1/otp", {
+  const delivery = deploymentEnvironment() === "production" ? "code" : "link";
+  const path = new URL(supabaseURL("/auth/v1/otp"));
+  if (delivery === "link") {
+    const state = body.state?.trim() ?? "";
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(state)) {
+      throw new ServiceError(
+        "CueAside could not start a secure sign-in session.",
+        400,
+        "invalid_oauth_state",
+      );
+    }
+    const callback = new URL("cueaside://auth/callback");
+    callback.searchParams.set("state", state);
+    path.searchParams.set("redirect_to", callback.toString());
+  }
+
+  await supabaseJSON(`${path.pathname}${path.search}`, {
     method: "POST",
     body: JSON.stringify({ email, create_user: true }),
   });
 
   return Response.json(
-    { ok: true },
+    { ok: true, delivery },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -223,37 +309,14 @@ export async function requireUser(request: Request): Promise<CueAsideUser> {
     throw new ServiceError("Sign in to continue.", 401, "sign_in_required");
   }
 
-  const result = await supabaseJSON(
-    "/auth/v1/user",
-    { method: "GET" },
-    token,
-  );
-  const id = typeof result.id === "string" ? result.id : "";
-  if (!id) {
+  try {
+    return await userForAccessToken(token);
+  } catch (error) {
+    if (error instanceof ServiceError && error.status >= 500) throw error;
     throw new ServiceError(
       "Your session has expired. Sign in again.",
       401,
       "invalid_session",
     );
   }
-
-  const metadata =
-    result.user_metadata && typeof result.user_metadata === "object"
-      ? (result.user_metadata as Record<string, unknown>)
-      : {};
-  const name =
-    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
-    (typeof metadata.name === "string" && metadata.name.trim()) ||
-    null;
-  const avatarUrl =
-    (typeof metadata.avatar_url === "string" && metadata.avatar_url.trim()) ||
-    (typeof metadata.picture === "string" && metadata.picture.trim()) ||
-    null;
-
-  return {
-    id,
-    email: typeof result.email === "string" ? result.email : null,
-    name,
-    avatarUrl,
-  };
 }

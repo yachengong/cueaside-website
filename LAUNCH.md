@@ -4,7 +4,21 @@ Everything the codebase can do is done and in CI. The items below need
 accounts, payments or credentials, so they are yours. Do them in order;
 each has a verification step so nothing is "probably fine".
 
-## 1. Production keys (blocks everything else)
+## 1. Allow new CueAside accounts
+
+In Supabase → CueAside → Authentication, turn **Allow new users to sign up**
+on. Keep Email enabled, keep email confirmation enabled, and keep Google
+enabled. The app deliberately sends `create_user: true`; if the project-wide
+signup switch is off, existing accounts can sign in but every new email gets
+`Signups not allowed for otp`.
+
+Verify with one disposable address that has never used CueAside: request the
+code, enter it in the macOS app, confirm the account appears in Supabase, then
+delete that disposable account through CueAside. Repeat once with a new Google
+identity. Do not use the private Console's email form for this test because it
+intentionally sets `create_user: false` and admits existing admins only.
+
+## 2. Production keys (blocks everything else)
 
 In Vercel → Project → Settings → Environment Variables, set for
 **Production** (Preview/Development get their own test values):
@@ -17,19 +31,19 @@ In Vercel → Project → Settings → Environment Variables, set for
   short-lived Nova-3 tokens)
 - `HEALTH_PROBE_TOKEN` (any long random string; enables deep health checks)
 
-Verify — keys never leave your machine:
+Production and Preview provider credentials are Vercel Sensitive variables,
+so their values cannot be read back after creation. Verify them from the
+authenticated `/internal/` Console: open **Provider health** and choose
+**Run live checks**. The checks run inside the deployed server and return only
+status, Stripe mode, and webhook readiness — never credential values.
 
-```bash
-cd ~/cueaside-website
-npx vercel env pull --environment=production .env.production.local
-node scripts/verify-production-keys.mjs .env.production.local
-rm .env.production.local
-```
+The local `scripts/verify-production-keys.mjs` remains available only when an
+operator already has a private env file or directly supplied process variables.
 
 Every line must be ✅. After the next deploy you can also check from
 outside: `curl -H "x-health-token: $TOKEN" "https://cueaside.com/api/health?probe=live"`.
 
-## 2. Stripe live mode
+## 3. Stripe live mode
 
 1. Dashboard → switch to Live mode → create the Product and a monthly
    recurring Price → put its id in `STRIPE_PRICE_ID`.
@@ -43,58 +57,41 @@ outside: `curl -H "x-health-token: $TOKEN" "https://cueaside.com/api/health?prob
 The verifier script from step 1 checks the live key, the price
 (monthly + active + livemode) and that the webhook endpoint exists.
 
-## 3. Apple Developer Program ($99/yr)
+## 4. Apple Developer Program ($99/yr)
 
 Enroll at developer.apple.com with the Apple ID you want the company tied
 to. When membership is active, in Xcode → Settings → Accounts create a
 **Developer ID Application** certificate (the existing
 "Apple Development" cert cannot distribute).
 
-Tell Claude when this is done — the archive → sign → notarize → staple →
-DMG pipeline and the Sparkle auto-update integration are queued behind
-this one credential and can be built and run for you the same day.
+When this is done, run the archive → sign → notarize → staple → DMG pipeline
+and configure the signed update feed. Do not distribute the locally verified
+ad-hoc DMG; CueAside has no unsigned private-beta release path.
 
-## 3b. Shipping the beta WITHOUT the Developer Program
+## 5. Third-party monitoring accounts
 
-You can run the private beta today. Build it:
-
-```bash
-cd ~/Desktop/SideCue && ./Tools/build_beta_dmg.sh
-```
-
-That produces `build/SideCue-beta-<version>-<stamp>.dmg`, a `.txt` receipt
-with its SHA-256, and preserved dSYMs in `build/dsyms/` (keep these — they
-are the only way to read a crash report from that build).
-
-The DMG is ad-hoc signed with hardened runtime but **not notarized**, so
-macOS blocks the first launch. Testers follow
-[cueaside.com/install](https://cueaside.com/install/) — right-click → Open,
-then the two permissions. Send that link with the DMG in the invite email.
-
-When the Developer ID certificate exists, this script gets replaced by a
-notarized pipeline and the /install page goes away.
-
-## 4. Third-party monitoring accounts
-
-- Sentry: create org + two projects (macOS, Next.js). The website side is
+- Sentry: create org + separate macOS and Next.js projects. The website side is
   already wired — paste the DSN into Vercel as `SENTRY_DSN` and
-  `NEXT_PUBLIC_SENTRY_DSN` and it starts reporting. The macOS project's
-  DSN goes to Claude.
+  `NEXT_PUBLIC_SENTRY_DSN`. The macOS reporter is also wired but remains inert
+  until `CUEASIDE_SENTRY_DSN` is supplied as a local/CI build setting. Never
+  commit a DSN. Enable Prevent Storing IP Addresses, keep content capture off,
+  upload the release dSYM, and verify one symbolicated test crash before launch.
 - Better Stack (or UptimeRobot): monitors for `https://cueaside.com` and
   `https://cueaside.com/api/health`.
 - OpenAI: put CueAside in its own Project; set spend alerts at 50/75/90%
   and a hard limit.
 - Supabase: Pro plan for daily backups; enable custom SMTP + auth rate
   limits per their production checklist.
-- Vercel: enable Web Analytics and Observability (both are toggles).
+- Vercel: enable Web Analytics and Speed Insights, then verify one real event
+  in each dashboard after the next deployment.
 
-## 5. Decisions to make (nobody can make them for you)
+## 6. Decisions to make (nobody can make them for you)
 
 - Price of the Pro plan (the site prints "$ ——— / month" until then).
 - Refund window wording beyond the current "we fix billing mistakes".
 - Whether macOS 15.3+ stays the floor, or you lower the deployment
   target after testing on 15.0–15.2.
-- Beta list: the 10–20 people for the private week.
+- Initial rollout list for the signed, notarized release.
 
 ## Already done (for reference)
 
@@ -109,5 +106,14 @@ notarized pipeline and the /install page goes away.
 - `DELETE /api/account`: self-serve deletion — cancels the Stripe
   subscription, drops billing/usage rows, deletes the auth identity.
 - Sentry wired for server, edge and browser; inert until a DSN is set.
+- Privacy-safe Sentry crash/error reporting wired in the macOS app; inert until
+  a build-time DSN is supplied.
 - Vercel Web Analytics component in the layout (activate via the toggle).
-- Beta DMG pipeline + `/install` guide (see 3b) — verified end to end.
+- Vercel Speed Insights component in the layout (activate via the toggle).
+- The private Console labels Production, Preview, and Development explicitly;
+  it rejects the wrong Stripe mode and flags a Preview still pointed at the
+  production public URL.
+- The static marketing-site publisher excludes API and private Console routes
+  and uses the same verified Webpack path as the dynamic Vercel build.
+- Local DMG packaging was verified for engineering only. It is not a
+  distributable release until Developer ID signing and Apple notarization pass.

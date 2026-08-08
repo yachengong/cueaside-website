@@ -56,6 +56,13 @@ test(
         create schema if not exists auth;
         create table auth.users (id uuid primary key);
       `);
+      const commercialMigration = await readFile(
+        new URL(
+          "../supabase/migrations/202607290001_cueaside_commercial.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
       const migration = await readFile(
         new URL(
           "../supabase/migrations/202608010001_free_pro_plans.sql",
@@ -63,6 +70,7 @@ test(
         ),
         "utf8",
       );
+      await pool.query(commercialMigration);
       await pool.query(migration);
 
       const cases = [
@@ -171,11 +179,19 @@ test(
         ),
         "utf8",
       );
+      const userCallMonitoringMigration = await readFile(
+        new URL(
+          "../supabase/migrations/20260808143202_internal_console_user_call_monitoring.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
       await pool.query(consoleFoundation);
       await pool.query(consoleTargetIndex);
       await pool.query(answerMetricsMigration);
       await pool.query(consoleRetentionMigration);
       await pool.query(transcriptionDiagnosticsMigration);
+      await pool.query(userCallMonitoringMigration);
 
       const consolePrivileges = await pool.query(`
         select
@@ -369,6 +385,60 @@ test(
         service_console_retention_execute: true,
       });
 
+      const summaryPrivileges = await pool.query(`
+        select
+          has_function_privilege(
+            'anon',
+            'public.internal_console_usage_summary(date)',
+            'EXECUTE'
+          ) as anon_usage_summary,
+          has_function_privilege(
+            'authenticated',
+            'public.internal_console_usage_summary(date)',
+            'EXECUTE'
+          ) as authenticated_usage_summary,
+          has_function_privilege(
+            'service_role',
+            'public.internal_console_usage_summary(date)',
+            'EXECUTE'
+          ) as service_usage_summary,
+          has_function_privilege(
+            'anon',
+            'public.internal_console_answer_summary(timestamptz,text,text,text,text,text)',
+            'EXECUTE'
+          ) as anon_answer_summary,
+          has_function_privilege(
+            'authenticated',
+            'public.internal_console_answer_summary(timestamptz,text,text,text,text,text)',
+            'EXECUTE'
+          ) as authenticated_answer_summary,
+          has_function_privilege(
+            'service_role',
+            'public.internal_console_answer_summary(timestamptz,text,text,text,text,text)',
+            'EXECUTE'
+          ) as service_answer_summary,
+          has_table_privilege(
+            'anon',
+            'public.usage_monthly',
+            'SELECT'
+          ) as anon_usage_select,
+          has_table_privilege(
+            'authenticated',
+            'public.billing_accounts',
+            'SELECT'
+          ) as authenticated_billing_select
+      `);
+      assert.deepEqual(summaryPrivileges.rows[0], {
+        anon_usage_summary: false,
+        authenticated_usage_summary: false,
+        service_usage_summary: true,
+        anon_answer_summary: false,
+        authenticated_answer_summary: false,
+        service_answer_summary: true,
+        anon_usage_select: false,
+        authenticated_billing_select: false,
+      });
+
       const transcriptionPrivileges = await pool.query(`
         select
           (
@@ -456,12 +526,16 @@ test(
         where schemaname = 'public'
           and indexname in (
             'internal_audit_log_target_occurred_idx',
+            'answer_generation_metrics_account_recorded_idx',
+            'answer_generation_metrics_operation_recorded_idx',
             'answer_generation_metrics_recorded_id_idx',
             'transcription_diagnostic_metrics_recorded_id_idx'
           )
         order by indexname
       `);
       assert.deepEqual(consoleIndexes.rows, [
+        { indexname: "answer_generation_metrics_account_recorded_idx" },
+        { indexname: "answer_generation_metrics_operation_recorded_idx" },
         { indexname: "answer_generation_metrics_recorded_id_idx" },
         { indexname: "internal_audit_log_target_occurred_idx" },
         { indexname: "transcription_diagnostic_metrics_recorded_id_idx" },
@@ -616,6 +690,8 @@ test(
         await pool.query(
           `insert into public.answer_generation_metrics (
           deployment,
+          operation,
+          account_key,
           model,
           depth,
           reasoning_effort,
@@ -632,6 +708,8 @@ test(
           pricing_version
         ) values (
           'production',
+          'state_update',
+          '${"a".repeat(64)}',
           'gpt-5.6-sol',
           'thinking',
           'medium',
@@ -656,6 +734,8 @@ test(
       const storedMetrics = await pool.query(`
         select
           deployment,
+          operation,
+          account_key,
           model,
           depth,
           service_tier,
@@ -669,6 +749,8 @@ test(
       `);
       assert.deepEqual(storedMetrics.rows, [{
         deployment: "production",
+        operation: "state_update",
+        account_key: "a".repeat(64),
         model: "gpt-5.6-sol",
         depth: "thinking",
         service_tier: "fast",
@@ -678,6 +760,67 @@ test(
         output_tokens: 700,
         estimated_cost_micro_usd: "52000",
       }]);
+      await pool.query("begin");
+      try {
+        await pool.query("set local role service_role");
+        const summary = await pool.query(
+          `select * from public.internal_console_answer_summary(
+            now() - interval '1 hour',
+            $1,
+            'state_update',
+            'gpt-5.6-sol',
+            'thinking',
+            'completed'
+          )`,
+          ["a".repeat(64)],
+        );
+        assert.deepEqual(summary.rows, [{
+          total_calls: "1",
+          completed_calls: "1",
+          failed_calls: "0",
+          first_readable_p95_ms: 9_000,
+          duration_p95_ms: 12_000,
+          input_tokens: "6000",
+          cached_input_tokens: "0",
+          output_tokens: "700",
+          reasoning_tokens: "500",
+          estimated_cost_micro_usd: "52000",
+        }]);
+        await pool.query("commit");
+      } catch (error) {
+        await pool.query("rollback");
+        throw error;
+      }
+      await assert.rejects(
+        pool.query(
+          `insert into public.answer_generation_metrics (
+            deployment,
+            operation,
+            account_key,
+            model,
+            depth,
+            reasoning_effort,
+            service_tier,
+            status,
+            http_status,
+            duration_ms,
+            pricing_version
+          ) values (
+            'production',
+            'untrusted-operation',
+            'not-a-hash',
+            'gpt-5.6-terra',
+            'balanced',
+            'none',
+            'standard',
+            'failed',
+            500,
+            100,
+            '2026-07-30'
+          )`,
+        ),
+        /answer_generation_metrics_(operation|account_key)_check/,
+      );
       await assert.rejects(
         pool.query(
           `insert into public.answer_generation_metrics (

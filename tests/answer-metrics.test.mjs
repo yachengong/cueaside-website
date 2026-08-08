@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  completedNonStreamingAnswerMetric,
   estimateAnswerCostMicroUSD,
   failedAnswerMetric,
   observeAnswerStream,
@@ -49,6 +50,7 @@ test("records a bounded content-free metric for upstream failures", () => {
 
   assert.deepEqual(metric, {
     event: "answer_metric",
+    operation: "answer",
     model: "gpt-5.6-terra",
     depth: "balanced",
     reasoningEffort: "none",
@@ -95,6 +97,7 @@ test("proxies split SSE bytes and retains only content-free metrics", async () =
   const metric = await observed.completion;
   assert.deepEqual(metric, {
     event: "answer_metric",
+    operation: "answer",
     model: "gpt-5.6-sol",
     depth: "thinking",
     reasoningEffort: "low",
@@ -113,6 +116,35 @@ test("proxies split SSE bytes and retains only content-free metrics", async () =
   assert.ok(metric.firstReadableMs >= 0);
   assert.ok(metric.durationMs >= metric.firstReadableMs);
   assert.doesNotMatch(JSON.stringify(metric), /First|private answer/);
+});
+
+test("records operation-aware non-streaming metrics without retaining output", () => {
+  const metric = completedNonStreamingAnswerMetric({
+    operation: "reply_check",
+    model: "gpt-5.6-luna",
+    depth: "instinct",
+    reasoningEffort: "none",
+    serviceTier: null,
+    httpStatus: 200,
+    startedAt: Date.now() - 12,
+  }, {
+    model: "gpt-5.6-luna",
+    service_tier: "standard",
+    output: [{ content: [{ text: "private spoken reply analysis" }] }],
+    usage: {
+      input_tokens: 90,
+      output_tokens: 10,
+      input_tokens_details: { cached_tokens: 20 },
+      output_tokens_details: { reasoning_tokens: 2 },
+    },
+  });
+
+  assert.equal(metric.operation, "reply_check");
+  assert.equal(metric.inputTokens, 90);
+  assert.equal(metric.cachedInputTokens, 20);
+  assert.equal(metric.outputTokens, 10);
+  assert.equal(metric.reasoningTokens, 2);
+  assert.doesNotMatch(JSON.stringify(metric), /private|spoken|analysis/);
 });
 
 test("cancellation resolves a bounded metric instead of hanging after-work", async () => {

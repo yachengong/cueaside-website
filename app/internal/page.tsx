@@ -8,6 +8,7 @@ import {
 } from "@/lib/server/internal-auth";
 import {
   deploymentEnvironment,
+  pseudonymousIdentifier,
   publicSiteURL,
   runtime,
 } from "@/lib/server/runtime";
@@ -20,8 +21,10 @@ import {
 import {
   insertInternalAuditEvent,
   internalAnswerMetricsPage,
+  internalAnswerMetricsSummary,
   internalAccountsFor,
   internalMonthlyUsageFor,
+  internalUsageSummary,
   listInternalAuthUsers,
   recentInternalAuditEvents,
   recentInternalSessionDiagnosticSnapshots,
@@ -33,11 +36,19 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
 const METRIC_PAGE_SIZE = 20;
-const METRIC_SUMMARY_LIMIT = 1_000;
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
 type MetricModel = "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol";
 type MetricDepth = "instinct" | "balanced" | "precise" | "thinking";
+type MetricOperation =
+  | "answer"
+  | "prep_answer"
+  | "vision"
+  | "context_prepare"
+  | "state_seed"
+  | "state_update"
+  | "role_guidance"
+  | "reply_check";
 type MetricStatus =
   | "completed"
   | "incomplete"
@@ -56,6 +67,16 @@ const METRIC_DEPTHS = new Set<MetricDepth>([
   "balanced",
   "precise",
   "thinking",
+]);
+const METRIC_OPERATIONS = new Set<MetricOperation>([
+  "answer",
+  "prep_answer",
+  "vision",
+  "context_prepare",
+  "state_seed",
+  "state_update",
+  "role_guidance",
+  "reply_check",
 ]);
 const METRIC_STATUSES = new Set<MetricStatus>([
   "completed",
@@ -94,6 +115,16 @@ function diagnosticSessionKey(
 ): string | undefined {
   const candidate = firstValue(value)?.trim().toLowerCase();
   return candidate && /^[a-f0-9]{64}$/.test(candidate) ? candidate : undefined;
+}
+
+function internalAccountID(
+  value: string | string[] | undefined,
+): string | undefined {
+  const candidate = firstValue(value)?.trim().toLowerCase();
+  return candidate
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(candidate)
+    ? candidate
+    : undefined;
 }
 
 function shortID(value: string | null): string {
@@ -195,16 +226,6 @@ function dateTimeLabel(value: string): string {
       }).format(date);
 }
 
-function percentile(values: number[], fraction: number): number | null {
-  if (values.length === 0) return null;
-  const ordered = [...values].sort((left, right) => left - right);
-  const index = Math.min(
-    ordered.length - 1,
-    Math.max(0, Math.ceil(ordered.length * fraction) - 1),
-  );
-  return ordered[index];
-}
-
 function durationLabel(milliseconds: number | null): string {
   if (milliseconds === null) return "—";
   if (milliseconds < 1_000) return `${milliseconds.toLocaleString()} ms`;
@@ -222,6 +243,20 @@ function modelLabel(model: string): string {
   return model.replace("gpt-5.6-", "").replace(/^./, (value) =>
     value.toUpperCase()
   );
+}
+
+function operationLabel(operation: string): string {
+  const labels: Record<string, string> = {
+    answer: "Live answer",
+    prep_answer: "Prep answer",
+    vision: "Screenshot",
+    context_prepare: "Prepare Context",
+    state_seed: "Seed State",
+    state_update: "State update",
+    role_guidance: "Role guidance",
+    reply_check: "Reply check",
+  };
+  return labels[operation] ?? operation.replaceAll("_", " ");
 }
 
 function metricStatusTone(status: string): StatusTone {
@@ -287,11 +322,13 @@ export default async function InternalConsolePage({
   searchParams,
 }: {
   searchParams: Promise<{
+    account?: string | string[];
     checks?: string | string[];
     depth?: string | string[];
     hours?: string | string[];
     metricPage?: string | string[];
     model?: string | string[];
+    operation?: string | string[];
     page?: string | string[];
     diagnosticSession?: string | string[];
     status?: string | string[];
@@ -308,14 +345,26 @@ export default async function InternalConsolePage({
   const metricsPage = parsePage(params.metricPage);
   const hours = metricHours(params.hours);
   const model = allowedValue(params.model, METRIC_MODELS);
+  const operation = allowedValue(params.operation, METRIC_OPERATIONS);
   const depth = allowedValue(params.depth, METRIC_DEPTHS);
   const metricStatus = allowedValue(params.status, METRIC_STATUSES);
+  const selectedAccountID = internalAccountID(params.account);
+  const selectedAccountKey = selectedAccountID
+    ? await pseudonymousIdentifier(`answer-metric:${selectedAccountID}`)
+    : undefined;
   const requestedDiagnosticSession = diagnosticSessionKey(
     params.diagnosticSession,
   );
   const checksValue = Array.isArray(params.checks) ? params.checks[0] : params.checks;
   const shouldRunProviderChecks = checksValue === "live";
-  const metricFilters = { hours, model, depth, status: metricStatus };
+  const metricFilters = {
+    hours,
+    model,
+    operation,
+    accountKey: selectedAccountKey,
+    depth,
+    status: metricStatus,
+  };
   const env = runtime();
   const deployment = deploymentEnvironment(env);
   const [
@@ -323,6 +372,8 @@ export default async function InternalConsolePage({
     providerHealth,
     answerMetricPage,
     answerMetricSummary,
+    answerHealthSummary,
+    usageSummary,
     transcriptionDiagnostics,
     diagnosticSnapshots,
   ] = await Promise.all([
@@ -333,11 +384,9 @@ export default async function InternalConsolePage({
       page: metricsPage,
       perPage: METRIC_PAGE_SIZE,
     }),
-    internalAnswerMetricsPage({
-      ...metricFilters,
-      page: 1,
-      perPage: METRIC_SUMMARY_LIMIT,
-    }),
+    internalAnswerMetricsSummary(metricFilters),
+    internalAnswerMetricsSummary({ hours: 24 }),
+    internalUsageSummary(),
     recentInternalTranscriptionDiagnostics({ hours: 24, limit: 500 }),
     deployment === "production"
       ? Promise.resolve([])
@@ -358,6 +407,8 @@ export default async function InternalConsolePage({
     }
     if (hours !== 24) query.set("hours", String(hours));
     if (model) query.set("model", model);
+    if (operation) query.set("operation", operation);
+    if (selectedAccountID) query.set("account", selectedAccountID);
     if (depth) query.set("depth", depth);
     if (metricStatus) query.set("status", metricStatus);
     const suffix = query.size > 0 ? `?${query.toString()}` : "";
@@ -365,7 +416,13 @@ export default async function InternalConsolePage({
   }
   const userIDs = directory.users.map((user) => user.id);
   const hasMetricNavigation = Boolean(
-    metricsPage > 1 || hours !== 24 || model || depth || metricStatus,
+    metricsPage > 1
+      || hours !== 24
+      || model
+      || operation
+      || selectedAccountID
+      || depth
+      || metricStatus,
   );
   const sessionKeys = [...new Set(
     diagnosticSnapshots.map((snapshot) => snapshot.session_key),
@@ -403,6 +460,7 @@ export default async function InternalConsolePage({
         : hasMetricNavigation
           ? "answer_metrics_viewed"
           : "console_viewed",
+      targetUserId: selectedAccountID ?? null,
       pageNumber: hasMetricNavigation ? metricsPage : page,
     }),
   ]);
@@ -422,30 +480,29 @@ export default async function InternalConsolePage({
     : siteURL !== "https://cueaside.com";
   const shownStart = directory.users.length ? (page - 1) * PAGE_SIZE + 1 : 0;
   const shownEnd = (page - 1) * PAGE_SIZE + directory.users.length;
-  const activeCount = accounts.filter((row) =>
-    ACTIVE_STATUSES.has(row.subscription_status),
-  ).length;
-  const answerMetrics = answerMetricSummary.rows;
-  const completedAnswerMetrics = answerMetrics.filter(
-    (metric) => metric.status === "completed",
-  );
-  const firstReadableP95 = percentile(
-    completedAnswerMetrics.flatMap((metric) =>
-      metric.first_readable_ms === null ? [] : [metric.first_readable_ms]
-    ),
-    0.95,
-  );
-  const durationP95 = percentile(
-    completedAnswerMetrics.map((metric) => metric.duration_ms),
-    0.95,
-  );
-  const answerCostMicroUSD = answerMetrics.reduce(
-    (sum, metric) => sum + metric.estimated_cost_micro_usd,
-    0,
-  );
-  const completionPercent = answerMetrics.length
-    ? Math.round(completedAnswerMetrics.length / answerMetrics.length * 100)
+  const firstReadableP95 = answerMetricSummary.first_readable_p95_ms;
+  const durationP95 = answerMetricSummary.duration_p95_ms;
+  const answerCostMicroUSD = answerMetricSummary.estimated_cost_micro_usd;
+  const completionPercent = answerMetricSummary.total_calls
+    ? Math.round(
+        answerMetricSummary.completed_calls
+          / answerMetricSummary.total_calls
+          * 100,
+      )
     : 0;
+  const failurePercent = answerMetricSummary.total_calls
+    ? Math.round(
+        answerMetricSummary.failed_calls / answerMetricSummary.total_calls * 100,
+      )
+    : 0;
+  const healthFailurePercent = answerHealthSummary.total_calls
+    ? Math.round(
+        answerHealthSummary.failed_calls / answerHealthSummary.total_calls * 100,
+      )
+    : 0;
+  const selectedAccount = selectedAccountID
+    ? directory.users.find((user) => user.id.toLowerCase() === selectedAccountID)
+    : undefined;
   const transcriptionCaptures = transcriptionDiagnostics.filter(
     (metric) => metric.kind === "capture",
   );
@@ -470,6 +527,7 @@ export default async function InternalConsolePage({
   const metricShownEnd = (metricsPage - 1) * METRIC_PAGE_SIZE
     + answerMetricPage.rows.length;
   const consoleHref = (input: {
+    accountID?: string | null;
     accountPage?: number;
     metricPage?: number;
     checks?: "live";
@@ -485,6 +543,11 @@ export default async function InternalConsolePage({
       if (targetMetricPage > 1) query.set("metricPage", String(targetMetricPage));
       if (hours !== 24) query.set("hours", String(hours));
       if (model) query.set("model", model);
+      if (operation) query.set("operation", operation);
+      const targetAccountID = input.accountID === undefined
+        ? selectedAccountID
+        : input.accountID;
+      if (targetAccountID) query.set("account", targetAccountID);
       if (depth) query.set("depth", depth);
       if (metricStatus) query.set("status", metricStatus);
     }
@@ -595,6 +658,47 @@ export default async function InternalConsolePage({
       },
     },
   ];
+  const operationalAlerts: Array<{
+    title: string;
+    detail: string;
+    tone: "warning" | "bad";
+  }> = [];
+  if (answerHealthSummary.total_calls >= 10 && healthFailurePercent >= 5) {
+    operationalAlerts.push({
+      title: "Model-call failures are elevated",
+      detail: `${healthFailurePercent}% of all calls failed in the last 24 hours. Filter by operation and status before changing routing.`,
+      tone: healthFailurePercent >= 10 ? "bad" : "warning",
+    });
+  }
+  if ((answerHealthSummary.first_readable_p95_ms ?? 0) > 10_000) {
+    operationalAlerts.push({
+      title: "First-readable latency is high",
+      detail: `p95 is ${durationLabel(answerHealthSummary.first_readable_p95_ms)} across all calls in the last 24 hours.`,
+      tone: (answerHealthSummary.first_readable_p95_ms ?? 0) > 15_000
+        ? "bad"
+        : "warning",
+    });
+  }
+  if (
+    transcriptionResults.length >= 10
+    && reviewedTranscriptions.length / transcriptionResults.length >= 0.1
+  ) {
+    operationalAlerts.push({
+      title: "Transcription review rate is elevated",
+      detail: `${reviewedTranscriptions.length} of ${transcriptionResults.length} recent results were empty, failed, cancelled, or flagged for language review.`,
+      tone: "warning",
+    });
+  }
+  const unreadyProviders = providerRows.filter(
+    (row) => row.status.tone === "bad",
+  );
+  if (unreadyProviders.length > 0) {
+    operationalAlerts.push({
+      title: "Provider setup needs attention",
+      detail: unreadyProviders.map((row) => row.name).join(", "),
+      tone: "bad",
+    });
+  }
 
   return (
     <main className="internal-console-shell">
@@ -659,20 +763,52 @@ export default async function InternalConsolePage({
             <small>Supabase identities</small>
           </article>
           <article>
-            <span>Paid on this page</span>
-            <strong>{activeCount}</strong>
-            <small>Active or trialing</small>
+            <span>Paid accounts</span>
+            <strong>{usageSummary.active_subscriptions.toLocaleString()}</strong>
+            <small>
+              {usageSummary.trialing_subscriptions.toLocaleString()} trialing · {usageSummary.canceling_subscriptions.toLocaleString()} canceling
+            </small>
           </article>
           <article>
-            <span>Current month</span>
-            <strong>{usage.reduce((sum, row) => sum + row.answer_requests, 0)}</strong>
-            <small>Answer requests on this page</small>
+            <span>Monthly active</span>
+            <strong>{usageSummary.monthly_active_accounts.toLocaleString()}</strong>
+            <small>Accounts with metered activity</small>
           </article>
           <article>
-            <span>Console admins</span>
-            <strong>{adminIDs.size}</strong>
-            <small>Server allowlist</small>
+            <span>Answers this month</span>
+            <strong>{usageSummary.answer_requests.toLocaleString()}</strong>
+            <small>All accounts</small>
           </article>
+          <article>
+            <span>Transcriptions</span>
+            <strong>{usageSummary.transcription_requests.toLocaleString()}</strong>
+            <small>File and fallback requests</small>
+          </article>
+          <article>
+            <span>Live minutes</span>
+            <strong>{(usageSummary.realtime_tokens * 4).toLocaleString()}</strong>
+            <small>{adminIDs.size} Console admin{adminIDs.size === 1 ? "" : "s"}</small>
+          </article>
+        </section>
+
+        <section
+          className={`internal-alert-strip ${operationalAlerts.length === 0 ? "is-clear" : ""}`}
+          aria-label="Operational alerts"
+        >
+          <div>
+            <p className="internal-kicker">Needs attention</p>
+            <h2>{operationalAlerts.length === 0 ? "No active Console alerts" : `${operationalAlerts.length} active alert${operationalAlerts.length === 1 ? "" : "s"}`}</h2>
+          </div>
+          <div className="internal-alert-list">
+            {operationalAlerts.length === 0 ? (
+              <p>Account usage, model latency, failures, transcription results, and provider configuration are within the current guardrails.</p>
+            ) : operationalAlerts.map((alert) => (
+              <article className={`is-${alert.tone}`} key={alert.title}>
+                <strong>{alert.title}</strong>
+                <span>{alert.detail}</span>
+              </article>
+            ))}
+          </div>
         </section>
 
         {deployment !== "production" ? (
@@ -941,6 +1077,11 @@ export default async function InternalConsolePage({
                 {hours === 24 ? "Last 24 hours" : hours === 168 ? "Last 7 days" : "Last 30 days"}
               </p>
               <h2>Answer performance</h2>
+              {selectedAccountID ? (
+                <p className="internal-filter-context">
+                  Account: {selectedAccount?.email ?? shortID(selectedAccountID)}
+                </p>
+              ) : null}
             </div>
             <span>
               {metricShownStart}–{metricShownEnd} of {answerMetricPage.total.toLocaleString()}
@@ -948,12 +1089,29 @@ export default async function InternalConsolePage({
           </div>
           <form className="internal-metric-filters" method="get" action="/internal/">
             {page > 1 ? <input type="hidden" name="page" value={page} /> : null}
+            {selectedAccountID ? (
+              <input type="hidden" name="account" value={selectedAccountID} />
+            ) : null}
             <label>
               <span>Window</span>
               <select name="hours" defaultValue={String(hours)}>
                 <option value="24">24 hours</option>
                 <option value="168">7 days</option>
                 <option value="720">30 days</option>
+              </select>
+            </label>
+            <label>
+              <span>Operation</span>
+              <select name="operation" defaultValue={operation ?? "all"}>
+                <option value="all">All operations</option>
+                <option value="answer">Live answer</option>
+                <option value="prep_answer">Prep answer</option>
+                <option value="vision">Screenshot</option>
+                <option value="context_prepare">Prepare Context</option>
+                <option value="state_seed">Seed State</option>
+                <option value="state_update">State update</option>
+                <option value="role_guidance">Role guidance</option>
+                <option value="reply_check">Reply check</option>
               </select>
             </label>
             <label>
@@ -997,8 +1155,8 @@ export default async function InternalConsolePage({
           <div className="internal-metric-grid" aria-label="Answer performance summary">
             <article>
               <span>Calls</span>
-              <strong>{answerMetricPage.total.toLocaleString()}</strong>
-              <small>{completionPercent}% completed in sample</small>
+              <strong>{answerMetricSummary.total_calls.toLocaleString()}</strong>
+              <small>{completionPercent}% completed · {failurePercent}% failed</small>
             </article>
             <article>
               <span>First readable p95</span>
@@ -1013,17 +1171,14 @@ export default async function InternalConsolePage({
             <article>
               <span>Estimated cost</span>
               <strong>{costLabel(answerCostMicroUSD)}</strong>
-              <small>
-                {answerMetricPage.total > answerMetrics.length
-                  ? `Latest ${answerMetrics.length.toLocaleString()} calls`
-                  : "All matched calls"}
-              </small>
+              <small>All matched calls</small>
             </article>
           </div>
           <div className="internal-table-wrap">
             <table className="internal-table internal-metrics-table">
               <thead>
                 <tr>
+                  <th>Operation</th>
                   <th>Model</th>
                   <th>Depth</th>
                   <th>Tier</th>
@@ -1037,6 +1192,14 @@ export default async function InternalConsolePage({
               <tbody>
                 {answerMetricPage.rows.map((metric) => (
                   <tr key={metric.id}>
+                    <td>
+                      <strong>{operationLabel(metric.operation)}</strong>
+                      <small>
+                        {metric.account_key
+                          ? selectedAccount?.email ?? `Account ${metric.account_key.slice(0, 8)}…`
+                          : "Legacy aggregate"}
+                      </small>
+                    </td>
                     <td>
                       <strong>{modelLabel(metric.model)}</strong>
                       <small>{dateTimeLabel(metric.recorded_at)}</small>
@@ -1059,7 +1222,7 @@ export default async function InternalConsolePage({
                 ))}
                 {answerMetricPage.rows.length === 0 ? (
                   <tr>
-                    <td className="internal-empty-row" colSpan={8}>
+                    <td className="internal-empty-row" colSpan={9}>
                       No content-free answer metrics have been recorded yet.
                     </td>
                   </tr>
@@ -1081,8 +1244,9 @@ export default async function InternalConsolePage({
             ) : <span />}
           </div>
           <p className="internal-provider-footnote">
-            Retained for 30 days. No account ID, question, answer, prompt,
-            transcript, Context, Project State, or provider body is stored.
+            Retained for 30 days. Calls are linked with a one-way account key;
+            no account ID, question, answer, prompt, transcript, Context,
+            Project State, or provider body is stored.
           </p>
         </section>
 
@@ -1165,6 +1329,7 @@ export default async function InternalConsolePage({
                   <th>Transcriptions</th>
                   <th>Live minutes</th>
                   <th>Last sign-in</th>
+                  <th>Model calls</th>
                 </tr>
               </thead>
               <tbody>
@@ -1201,6 +1366,18 @@ export default async function InternalConsolePage({
                       <td>{owner ? "Unlimited" : (counters?.transcription_requests ?? 0)}</td>
                       <td>{owner ? "Unlimited" : (counters?.realtime_tokens ?? 0) * 4}</td>
                       <td>{dateLabel(user.lastSignInAt)}</td>
+                      <td>
+                        <Link
+                          className="internal-row-action"
+                          href={consoleHref({
+                            accountID: user.id,
+                            metricPage: 1,
+                            hash: "model-calls",
+                          })}
+                        >
+                          Inspect
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })}

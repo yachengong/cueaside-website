@@ -79,13 +79,32 @@ test("Console database tables are service-role-only and content-free", async () 
 });
 
 test("Console auth never returns Supabase bearer tokens to the browser", async () => {
-  const internalAuth = await source("lib/server/internal-auth.ts");
+  const [internalAuth, completion] = await Promise.all([
+    source("lib/server/internal-auth.ts"),
+    source("app/internal/login/complete/internal-link-completion.tsx"),
+  ]);
   assert.match(internalAuth, /CUEASIDE_ADMIN_USER_IDS/);
   assert.match(internalAuth, /createInternalAdminSession/);
   assert.match(internalAuth, /Set-Cookie/);
   assert.doesNotMatch(internalAuth, /Response\.json\(result/);
   assert.doesNotMatch(internalAuth, /user_metadata/);
   assert.match(internalAuth, /The code is invalid or expired\./);
+  assert.match(internalAuth, /auth_email_rate_limited/);
+  assert.match(internalAuth, /Wait a few minutes before requesting another code/);
+  assert.match(internalAuth, /userForAccessToken/);
+  assert.match(internalAuth, /internal-auth-link/);
+  assert.match(completion, /window\.history\.replaceState/);
+  assert.match(completion, /\/api\/internal\/auth\/complete-link\//);
+  assert.doesNotMatch(completion, /localStorage|sessionStorage/);
+});
+
+test("Development App email login uses a state-bound native magic link", async () => {
+  const auth = await source("lib/server/auth.ts");
+  assert.match(auth, /deploymentEnvironment\(\) === "production" \? "code" : "link"/);
+  assert.match(auth, /new URL\("cueaside:\/\/auth\/callback"\)/);
+  assert.match(auth, /callback\.searchParams\.set\("state", state\)/);
+  assert.match(auth, /path\.searchParams\.set\("redirect_to", callback\.toString\(\)\)/);
+  assert.match(auth, /\{ ok: true, delivery \}/);
 });
 
 test("Console routes and pages are present but absent from public navigation", async () => {
@@ -143,7 +162,7 @@ test("Console displays only content-free answer performance fields", async () =>
   assert.match(page, /Retained for 30 days/);
   assert.match(storage, /recordAnswerGenerationMetric/);
   assert.match(storage, /adminRequest\("answer_generation_metrics"/);
-  assert.match(openai, /scheduleAnswerMetric\(observed\.completion\)/);
+  assert.match(openai, /scheduleAnswerMetric\(observed\.completion, user\.id\)/);
   assert.match(openai, /failedAnswerMetric/);
   assert.match(metrics, /answer_metric_persist_failed/);
   const metricInterfaceStart = storage.indexOf(
@@ -164,6 +183,35 @@ test("Console displays only content-free answer performance fields", async () =>
   assert.doesNotMatch(
     metricStorage,
     /question|answerText|prompt|transcript|context|session_id/i,
+  );
+});
+
+test("Console links model calls to accounts without storing account IDs", async () => {
+  const [page, storage, openai, migration] = await Promise.all([
+    source("app/internal/page.tsx"),
+    source("lib/server/supabase.ts"),
+    source("lib/server/openai.ts"),
+    source("supabase/migrations/20260808143202_internal_console_user_call_monitoring.sql"),
+  ]);
+
+  assert.match(
+    openai,
+    /const accountKey = await pseudonymousIdentifier\([\s\S]*`answer-metric:\$\{userId\}`/,
+  );
+  assert.match(openai, /operation: "reply_check"/);
+  assert.match(storage, /account_key/);
+  assert.match(storage, /internal_console_answer_summary/);
+  assert.match(storage, /internal_console_usage_summary/);
+  assert.match(page, /name="operation"/);
+  assert.match(page, /Model calls/);
+  assert.match(page, /one-way account key/);
+  assert.match(migration, /account_key text/);
+  assert.match(migration, /account_key ~ '\^\[a-f0-9\]\{64\}\$'/);
+  assert.match(migration, /security invoker/);
+  assert.doesNotMatch(migration, /security definer/i);
+  assert.doesNotMatch(
+    migration,
+    /^\s*(transcript|audio|prompt|question|answer|content|message|context|resume|note)\w*\s+(text|jsonb|json|bytea)/im,
   );
 });
 
@@ -210,6 +258,7 @@ test("Console metrics use allowlisted filters, exact pagination, retention, and 
   assert.match(page, /name="model"/);
   assert.match(page, /name="depth"/);
   assert.match(page, /name="status"/);
+  assert.match(page, /name="operation"/);
   assert.match(page, /answer_metrics_viewed/);
   assert.match(page, /Page \{metricsPage\} of \{metricPageCount\}/);
   assert.match(page, /page > pageCount \|\| metricsPage > metricPageCount/);
@@ -218,6 +267,8 @@ test("Console metrics use allowlisted filters, exact pagination, retention, and 
   assert.match(storage, /query\.set\("model", `eq\.\$\{input\.model\}`\)/);
   assert.match(storage, /query\.set\("depth", `eq\.\$\{input\.depth\}`\)/);
   assert.match(storage, /query\.set\("status", `eq\.\$\{input\.status\}`\)/);
+  assert.match(storage, /query\.set\("operation", `eq\.\$\{input\.operation\}`\)/);
+  assert.match(storage, /query\.set\("account_key", `eq\.\$\{input\.accountKey\}`\)/);
   assert.match(retention, /security invoker/i);
   assert.doesNotMatch(retention, /security definer/i);
   assert.match(retention, /expires_at < now\(\) - interval '7 days'/);

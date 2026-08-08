@@ -1,9 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
-
-type Step = "email" | "code";
 
 interface ErrorPayload {
   error?: { message?: string };
@@ -22,10 +19,8 @@ async function postJSON(path: string, body: Record<string, string>) {
 }
 
 export default function InternalLoginForm() {
-  const router = useRouter();
-  const [step, setStep] = useState<Step>("email");
+  const [sent, setSent] = useState(false);
   const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -35,15 +30,9 @@ export default function InternalLoginForm() {
     setBusy(true);
     setMessage("");
     try {
-      if (step === "email") {
-        await postJSON("/api/internal/auth/request-code/", { email });
-        setStep("code");
-        setMessage("If this account can sign in, a code is on its way.");
-      } else {
-        await postJSON("/api/internal/auth/verify-code/", { email, token });
-        router.replace("/internal/");
-        router.refresh();
-      }
+      await postJSON("/api/internal/auth/request-code/", { email });
+      setSent(true);
+      setMessage("Open the secure sign-in link sent to this email.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Try again.");
     } finally {
@@ -61,40 +50,23 @@ export default function InternalLoginForm() {
         autoComplete="email"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
-        readOnly={step === "code"}
+        readOnly={sent}
         required
       />
-      {step === "code" ? (
-        <>
-          <label htmlFor="internal-code">One-time code</label>
-          <input
-            id="internal-code"
-            name="token"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]*"
-            value={token}
-            onChange={(event) => setToken(event.target.value.replace(/\D/g, ""))}
-            required
-            autoFocus
-          />
-        </>
-      ) : null}
       <button type="submit" disabled={busy}>
-        {busy ? "Checking…" : step === "email" ? "Send code" : "Open Console"}
+        {busy ? "Sending…" : sent ? "Send another link" : "Send sign-in link"}
       </button>
-      {step === "code" ? (
+      {sent ? (
         <button
           className="internal-text-button"
           type="button"
           onClick={() => {
-            setStep("email");
-            setToken("");
+            setSent(false);
             setMessage("");
           }}
           disabled={busy}
         >
-          Use a different account
+          Use a different email
         </button>
       ) : null}
       <p className="internal-form-message" role="status" aria-live="polite">

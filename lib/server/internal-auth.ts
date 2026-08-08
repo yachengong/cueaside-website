@@ -1,5 +1,6 @@
 import {
   requestExistingEmailCode,
+  userForAccessToken,
   verifyEmailCodeValue,
 } from "./auth";
 import { enforcePublicRateLimit } from "./rate-limit";
@@ -65,6 +66,61 @@ function randomToken(): string {
   return Buffer.from(bytes).toString("base64url");
 }
 
+function internalLoginCompletionURL(request: Request): string {
+  const configured = runtime().PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
+  const origin = configured || new URL(request.url).origin;
+  const url = new URL("/internal/login/complete/", origin);
+  if (url.protocol !== "https:" && url.hostname !== "localhost") {
+    throw new ServiceError(
+      "The private Console callback is not configured securely.",
+      503,
+      "internal_callback_not_configured",
+    );
+  }
+  return url.toString();
+}
+
+async function createApprovedInternalSession(
+  adminIDs: Set<string>,
+  userIdInput: string,
+): Promise<Response> {
+  const userId = userIdInput.toLowerCase();
+  if (!adminIDs.has(userId)) {
+    if (internalUUIDPattern.test(userId)) {
+      await insertInternalAuditEvent({
+        adminUserId: userId,
+        action: "login_denied",
+      });
+    }
+    throw new ServiceError(
+      "This account does not have Console access.",
+      403,
+      "internal_access_denied",
+    );
+  }
+
+  const sessionToken = randomToken();
+  const tokenHash = await hashInternalSessionToken(sessionToken);
+  const expiresAt = new Date(
+    Date.now() + internalSessionSeconds * 1_000,
+  ).toISOString();
+  await createInternalAdminSession({ tokenHash, adminUserId: userId, expiresAt });
+  await insertInternalAuditEvent({
+    adminUserId: userId,
+    action: "login_succeeded",
+  });
+
+  return Response.json(
+    { ok: true },
+    {
+      headers: {
+        "Cache-Control": "no-store",
+        "Set-Cookie": internalSessionCookieHeader(sessionToken),
+      },
+    },
+  );
+}
+
 export async function requestInternalAdminCode(
   request: Request,
 ): Promise<Response> {
@@ -80,11 +136,22 @@ export async function requestInternalAdminCode(
   });
 
   try {
-    await requestExistingEmailCode(email);
+    await requestExistingEmailCode(email, internalLoginCompletionURL(request));
   } catch (error) {
     // Do not let the private login page reveal whether an email has a
-    // CueAside account. Configuration or provider outages must remain visible.
-    if (error instanceof ServiceError && error.status >= 500) throw error;
+    // CueAside account. A project-wide mail limit reveals nothing about the
+    // address, so keep that actionable instead of pretending a code was sent.
+    if (error instanceof ServiceError) {
+      if (error.status === 429) {
+        throw new ServiceError(
+          "Email delivery is temporarily limited. Wait a few minutes before requesting another code.",
+          429,
+          "auth_email_rate_limited",
+        );
+      }
+      // Configuration or provider outages must remain visible.
+      if (error.status >= 500) throw error;
+    }
   }
 
   return Response.json(
@@ -133,41 +200,45 @@ export async function verifyInternalAdminCode(
     result.user && typeof result.user === "object"
       ? (result.user as Record<string, unknown>)
       : {};
-  const userId = typeof rawUser.id === "string" ? rawUser.id.toLowerCase() : "";
-  if (!adminIDs.has(userId)) {
-    if (internalUUIDPattern.test(userId)) {
-      await insertInternalAuditEvent({
-        adminUserId: userId,
-        action: "login_denied",
-      });
-    }
+  const userId = typeof rawUser.id === "string" ? rawUser.id : "";
+  return createApprovedInternalSession(adminIDs, userId);
+}
+
+export async function completeInternalAdminLink(
+  request: Request,
+): Promise<Response> {
+  const adminIDs = requireAdminConfiguration();
+  const body = await readJSON<{ accessToken?: string }>(request, 8_000);
+  const accessToken = body.accessToken?.trim() ?? "";
+  if (
+    accessToken.length < 100 ||
+    accessToken.length > 4_096 ||
+    !/^[A-Za-z0-9._-]+$/.test(accessToken)
+  ) {
     throw new ServiceError(
-      "This account does not have Console access.",
-      403,
-      "internal_access_denied",
+      "Your sign-in link is invalid or expired.",
+      400,
+      "invalid_magic_link",
     );
   }
-
-  const sessionToken = randomToken();
-  const tokenHash = await hashInternalSessionToken(sessionToken);
-  const expiresAt = new Date(
-    Date.now() + internalSessionSeconds * 1_000,
-  ).toISOString();
-  await createInternalAdminSession({ tokenHash, adminUserId: userId, expiresAt });
-  await insertInternalAuditEvent({
-    adminUserId: userId,
-    action: "login_succeeded",
+  await enforcePublicRateLimit({
+    request,
+    scope: "internal-auth-link",
+    maximum: 12,
+    windowSeconds: 15 * 60,
   });
 
-  return Response.json(
-    { ok: true },
-    {
-      headers: {
-        "Cache-Control": "no-store",
-        "Set-Cookie": internalSessionCookieHeader(sessionToken),
-      },
-    },
-  );
+  try {
+    const user = await userForAccessToken(accessToken);
+    return createApprovedInternalSession(adminIDs, user.id);
+  } catch (error) {
+    if (error instanceof ServiceError && error.status >= 500) throw error;
+    throw new ServiceError(
+      "Your sign-in link is invalid or expired.",
+      400,
+      "invalid_magic_link",
+    );
+  }
 }
 
 export async function internalAdminPrincipalForToken(

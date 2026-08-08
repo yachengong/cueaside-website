@@ -1,4 +1,4 @@
-import type { AnswerMetric } from "./answer-metrics";
+import type { AnswerMetric, AnswerOperation } from "./answer-metrics";
 import {
   deploymentEnvironment,
   ServiceError,
@@ -72,6 +72,8 @@ export interface InternalAnswerMetricRow {
   id: number;
   recorded_at: string;
   deployment: "production" | "preview" | "development";
+  operation: AnswerOperation;
+  account_key: string | null;
   model: "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol";
   depth: "instinct" | "balanced" | "precise" | "thinking";
   reasoning_effort: "none" | "low" | "medium";
@@ -99,6 +101,29 @@ export interface InternalAnswerMetricPage {
   page: number;
   perPage: number;
   total: number;
+}
+
+export interface InternalAnswerMetricSummary {
+  total_calls: number;
+  completed_calls: number;
+  failed_calls: number;
+  first_readable_p95_ms: number | null;
+  duration_p95_ms: number | null;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  reasoning_tokens: number;
+  estimated_cost_micro_usd: number;
+}
+
+export interface InternalUsageSummary {
+  active_subscriptions: number;
+  trialing_subscriptions: number;
+  canceling_subscriptions: number;
+  monthly_active_accounts: number;
+  answer_requests: number;
+  transcription_requests: number;
+  realtime_tokens: number;
 }
 
 export interface InternalTranscriptionDiagnosticRow {
@@ -447,6 +472,29 @@ export async function internalMonthlyUsageFor(
   );
 }
 
+export async function internalUsageSummary(): Promise<InternalUsageSummary> {
+  const now = new Date();
+  const periodStart = `${now.getUTCFullYear()}-${String(
+    now.getUTCMonth() + 1,
+  ).padStart(2, "0")}-01`;
+  const rows = await adminRequest<InternalUsageSummary[]>(
+    "rpc/internal_console_usage_summary",
+    {
+      method: "POST",
+      body: JSON.stringify({ p_period_start: periodStart }),
+    },
+  );
+  return rows[0] ?? {
+    active_subscriptions: 0,
+    trialing_subscriptions: 0,
+    canceling_subscriptions: 0,
+    monthly_active_accounts: 0,
+    answer_requests: 0,
+    transcription_requests: 0,
+    realtime_tokens: 0,
+  };
+}
+
 export async function recentInternalAuditEvents(
   limit = 20,
 ): Promise<InternalAuditRow[]> {
@@ -458,12 +506,15 @@ export async function recentInternalAuditEvents(
 
 export async function recordAnswerGenerationMetric(
   metric: AnswerMetric,
+  accountKey: string,
 ): Promise<void> {
   await adminRequest("answer_generation_metrics", {
     method: "POST",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify({
       deployment: deploymentEnvironment(),
+      operation: metric.operation,
+      account_key: accountKey,
       model: metric.model,
       depth: metric.depth,
       reasoning_effort: metric.reasoningEffort,
@@ -620,6 +671,8 @@ export async function internalAnswerMetricsPage(input: {
   page?: number;
   perPage?: number;
   model?: InternalAnswerMetricRow["model"];
+  operation?: AnswerOperation;
+  accountKey?: string;
   depth?: InternalAnswerMetricRow["depth"];
   status?: InternalAnswerMetricRow["status"];
 } = {}): Promise<InternalAnswerMetricPage> {
@@ -631,6 +684,8 @@ export async function internalAnswerMetricsPage(input: {
     "id",
     "recorded_at",
     "deployment",
+    "operation",
+    "account_key",
     "model",
     "depth",
     "reasoning_effort",
@@ -652,12 +707,56 @@ export async function internalAnswerMetricsPage(input: {
     order: "recorded_at.desc,id.desc",
   });
   if (input.model) query.set("model", `eq.${input.model}`);
+  if (input.operation) query.set("operation", `eq.${input.operation}`);
+  if (input.accountKey && /^[a-f0-9]{64}$/.test(input.accountKey)) {
+    query.set("account_key", `eq.${input.accountKey}`);
+  }
   if (input.depth) query.set("depth", `eq.${input.depth}`);
   if (input.status) query.set("status", `eq.${input.status}`);
   return adminPageRequest<InternalAnswerMetricRow>(
     `answer_generation_metrics?${query.toString()}`,
     { page, perPage },
   );
+}
+
+export async function internalAnswerMetricsSummary(input: {
+  hours?: number;
+  model?: InternalAnswerMetricRow["model"];
+  operation?: AnswerOperation;
+  accountKey?: string;
+  depth?: InternalAnswerMetricRow["depth"];
+  status?: InternalAnswerMetricRow["status"];
+} = {}): Promise<InternalAnswerMetricSummary> {
+  const hours = Math.min(24 * 30, Math.max(1, Math.floor(input.hours ?? 24)));
+  const since = new Date(Date.now() - hours * 60 * 60 * 1_000).toISOString();
+  const rows = await adminRequest<InternalAnswerMetricSummary[]>(
+    "rpc/internal_console_answer_summary",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        p_since: since,
+        p_account_key: input.accountKey && /^[a-f0-9]{64}$/.test(input.accountKey)
+          ? input.accountKey
+          : null,
+        p_operation: input.operation ?? null,
+        p_model: input.model ?? null,
+        p_depth: input.depth ?? null,
+        p_status: input.status ?? null,
+      }),
+    },
+  );
+  return rows[0] ?? {
+    total_calls: 0,
+    completed_calls: 0,
+    failed_calls: 0,
+    first_readable_p95_ms: null,
+    duration_p95_ms: null,
+    input_tokens: 0,
+    cached_input_tokens: 0,
+    output_tokens: 0,
+    reasoning_tokens: 0,
+    estimated_cost_micro_usd: 0,
+  };
 }
 
 export async function billingAccountFor(

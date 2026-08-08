@@ -1,4 +1,13 @@
 type AnswerDepth = "instinct" | "balanced" | "precise" | "thinking";
+export type AnswerOperation =
+  | "answer"
+  | "prep_answer"
+  | "vision"
+  | "context_prepare"
+  | "state_seed"
+  | "state_update"
+  | "role_guidance"
+  | "reply_check";
 type AnswerStatus =
   | "completed"
   | "incomplete"
@@ -12,6 +21,7 @@ type ServiceTier = "standard" | "fast";
 
 export type AnswerMetric = {
   event: "answer_metric";
+  operation: AnswerOperation;
   model: ModelName;
   depth: AnswerDepth;
   reasoningEffort: "none" | "low" | "medium";
@@ -29,6 +39,7 @@ export type AnswerMetric = {
 };
 
 export type AnswerMetricInput = {
+  operation?: string;
   model: string;
   depth: string;
   reasoningEffort: string;
@@ -90,6 +101,21 @@ function closedModel(value: unknown): ModelName {
   }
 }
 
+function closedOperation(value: unknown): AnswerOperation {
+  switch (value) {
+    case "prep_answer":
+    case "vision":
+    case "context_prepare":
+    case "state_seed":
+    case "state_update":
+    case "role_guidance":
+    case "reply_check":
+      return value;
+    default:
+      return "answer";
+  }
+}
+
 function closedDepth(value: unknown): AnswerDepth {
   switch (value) {
     case "instinct":
@@ -133,6 +159,7 @@ export function failedAnswerMetric(
 ): AnswerMetric {
   return {
     event: "answer_metric",
+    operation: closedOperation(input.operation),
     model: closedModel(input.model),
     depth: closedDepth(input.depth),
     reasoningEffort: closedEffort(input.reasoningEffort),
@@ -146,6 +173,58 @@ export function failedAnswerMetric(
     outputTokens: 0,
     reasoningTokens: 0,
     estimatedCostMicroUSD: 0,
+    pricingVersion: "2026-07-30",
+  };
+}
+
+/**
+ * Produces the same closed metric for a non-streaming Responses call. The
+ * response object is inspected only for model, tier, and numeric usage. Output
+ * text and every other provider field are ignored and never returned.
+ */
+export function completedNonStreamingAnswerMetric(
+  input: AnswerMetricInput,
+  value: unknown,
+): AnswerMetric {
+  const response = value && typeof value === "object"
+    ? value as ResponseShape
+    : {};
+  const model = closedModel(response.model ?? input.model);
+  const serviceTier = closedTier(response.service_tier ?? input.serviceTier);
+  const inputTokens = boundedInteger(response.usage?.input_tokens);
+  const cachedInputTokens = Math.min(
+    inputTokens,
+    boundedInteger(response.usage?.input_tokens_details?.cached_tokens),
+  );
+  const outputTokens = boundedInteger(response.usage?.output_tokens);
+  const reasoningTokens = Math.min(
+    outputTokens,
+    boundedInteger(response.usage?.output_tokens_details?.reasoning_tokens),
+  );
+  const durationMs = boundedMilliseconds(Date.now() - input.startedAt);
+
+  return {
+    event: "answer_metric",
+    operation: closedOperation(input.operation),
+    model,
+    depth: closedDepth(input.depth),
+    reasoningEffort: closedEffort(input.reasoningEffort),
+    serviceTier,
+    status: "completed",
+    httpStatus: Math.min(599, Math.max(0, Math.floor(input.httpStatus))),
+    firstReadableMs: durationMs,
+    durationMs,
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    reasoningTokens,
+    estimatedCostMicroUSD: estimateAnswerCostMicroUSD({
+      model,
+      serviceTier,
+      inputTokens,
+      cachedInputTokens,
+      outputTokens,
+    }),
     pricingVersion: "2026-07-30",
   };
 }
@@ -280,6 +359,7 @@ export function observeAnswerStream(
     const status = terminalStatus ?? fallbackStatus;
     resolveCompletion({
       event: "answer_metric",
+      operation: closedOperation(input.operation),
       model: actualModel,
       depth: closedDepth(input.depth),
       reasoningEffort: closedEffort(input.reasoningEffort),
